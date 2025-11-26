@@ -1,1 +1,3 @@
-assets/models/*.zip
+assets/models_zip/*.zip
+assets/models/
+assets/models_old/

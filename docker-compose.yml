@@ -16,12 +16,13 @@ services:
 
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      #- #./assets/models:/root/.gz/fuel:rw
+      - ./assets/models/:/root/.gz/fuel:rw
       - ./:/thesis:ro
 
     command: >
       bash -c "
         echo 'Launching Gazebo...';
-        gz sim
+        gz sim -v 3 /thesis/assets/maps/world-test.sdf
       "
 
+# gz sim -v 3 /thesis/assets/subt/subt_ign/worlds/urban_circuit/05/urban_circuit_05.sdf
