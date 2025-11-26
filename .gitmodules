@@ -1,0 +1,3 @@
+[submodule "subt"]
+	path = assets/subt
+	url = https://github.com/osrf/subt

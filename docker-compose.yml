@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  gazebo:
+    build:
+      context: .
+      dockerfile: docker/ros-jazzy-gazebo.Dockerfile
+    container_name: gazebo
+    network_mode: host
+
+    environment:
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      IGN_GAZEBO_RESOURCE_PATH: /thesis/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
+      
+
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      #- #./assets/models:/root/.gz/fuel:rw
+      - ./:/thesis:ro
+
+    command: >
+      bash -c "
+        echo 'Launching Gazebo...';
+        gz sim
+      "
+
