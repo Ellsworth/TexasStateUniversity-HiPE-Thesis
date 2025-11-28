@@ -1,3 +1,7 @@
 assets/models_zip/*.zip
 assets/models/
 assets/models_old/
+
+ros2_ws/src/build/
+ros2_ws/src/install/
+ros2_ws/src/log/
