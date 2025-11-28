@@ -11,7 +11,7 @@ services:
       DISPLAY: ${DISPLAY}
       QT_X11_NO_MITSHM: "1"
       IGN_GAZEBO_RESOURCE_PATH: /workspace/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
-    
+
     devices:
       - /dev/dri/card1:/dev/dri/card0
       - /dev/dri/renderD128:/dev/dri/renderD128
@@ -21,5 +21,11 @@ services:
       - ./assets/models/:/root/.gz/fuel:rw
       - ./:/workspace
 
-    command:
-      ros2 launch ros_gz_sim gz_sim.launch.py gz_args:=assets/maps/world-test.sdf
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        cd /workspace &&
+        colcon build --symlink-install &&
+        source install/setup.bash &&
+        ros2 launch firebot-rl run_gz.launch.py
+      "

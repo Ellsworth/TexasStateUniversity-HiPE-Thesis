@@ -5,3 +5,7 @@ assets/models_old/
 ros2_ws/src/build/
 ros2_ws/src/install/
 ros2_ws/src/log/
+
+build/
+log/
+install/
