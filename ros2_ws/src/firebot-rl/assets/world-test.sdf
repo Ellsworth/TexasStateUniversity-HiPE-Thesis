@@ -1,3 +1,21 @@
+<!-- 
+Software License Agreement (Apache License)
+
+Copyright 2018 Open Source Robotics Foundation
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 <?xml version="1.0" ?>
 
 <sdf version="1.6">
@@ -18,6 +36,14 @@
       filename="libignition-gazebo-scene-broadcaster-system.so"
       name="ignition::gazebo::systems::SceneBroadcaster">
     </plugin>
+    
+    <!-- CUSTOM -->
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
 
     <gui fullscreen="0">
 
@@ -268,12 +294,6 @@
     </include>
 
     <include>
-      <name>gas_1</name>
-      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Gas</uri>
-      <pose>-120.000000 -56.000000 -10.000000 0 0 0.000000</pose>
-    </include>
-
-    <include>
       <name>vent_2</name>
       <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Vent</uri>
       <pose>-82.000000 -94.000000 -8.000000 -1.570796 0 0.000000</pose>
@@ -364,18 +384,6 @@
     </include>
 
     <include>
-      <name>gas_2</name>
-      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Gas</uri>
-      <pose>40.000000 -160.000000 -10.000000 0 0 3.141593</pose>
-    </include>
-
-    <include>
-      <name>gas_3</name>
-      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Gas</uri>
-      <pose>72.000000 -128.000000 0.000000 0 0 -1.570796</pose>
-    </include>
-
-    <include>
       <name>rescue_randy_3</name>
       <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Rescue Randy Sitting</uri>
       <pose>46.000000 -134.000000 0.000000 0 0 3.141593</pose>
@@ -433,12 +441,6 @@
       <name>tile_31</name>
       <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Urban Service Room Centered</uri>
       <pose>-40.000000 -168.000000 -10.000000 0 0 3.141593</pose>
-    </include>
-
-    <include>
-      <name>gas_4</name>
-      <uri>https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Gas</uri>
-      <pose>-40.000000 -200.000000 -10.000000 0 0 3.141593</pose>
     </include>
 
     <include>

@@ -1,7 +1,16 @@
 from setuptools import find_packages, setup
 from glob import glob
+import os
 
 package_name = 'firebot-rl'
+
+# Recursively collect all files inside assets/
+asset_files = [
+    (os.path.join('share', package_name, root.replace('assets/', 'assets/')),
+     [os.path.join(root, f) for f in files])
+    for root, dirs, files in os.walk('assets')
+    if files
+]
 
 setup(
     name=package_name,
@@ -11,26 +20,12 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-
-        # Install launch files
-        ('share/' + package_name + '/launch', glob('launch/*launch.py')),
-
-        # Install assets
-        ('share/' + package_name + '/assets', glob('assets/*')),
-    ],
+        ('share/' + package_name + '/launch', glob('launch/*.launch.py')),
+    ] + asset_files,
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='root',
     maintainer_email='root@todo.todo',
     description='TODO: Package description',
     license='Apache-2.0',
-    extras_require={
-        'test': [
-            'pytest',
-        ],
-    },
-    entry_points={
-        'console_scripts': [
-        ],
-    },
 )
