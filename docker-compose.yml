@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   gazebo:
     build:
@@ -7,12 +5,12 @@ services:
       dockerfile: docker/ros-jazzy-gazebo.Dockerfile
     container_name: gazebo
     network_mode: host
-    working_dir: /thesis
+    working_dir: /workspace
 
     environment:
       DISPLAY: ${DISPLAY}
       QT_X11_NO_MITSHM: "1"
-      IGN_GAZEBO_RESOURCE_PATH: /thesis/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
+      IGN_GAZEBO_RESOURCE_PATH: /workspace/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
     
     devices:
       - /dev/dri/card1:/dev/dri/card0
@@ -21,13 +19,7 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ./assets/models/:/root/.gz/fuel:rw
-      - ./:/thesis:ro
+      - ./:/workspace
 
-    #command: >
-    #  bash -c "
-    #    echo 'Launching Gazebo...';
-    #    gz sim -v 3
-    #  "
-    command: ros2 launch ros_gz_sim gz_sim.launch.py gz_args:=assets/maps/world-test.sdf
-
-# gz sim -v 3 /thesis/assets/maps/world-test.sdf
+    command:
+      ros2 launch ros_gz_sim gz_sim.launch.py gz_args:=assets/maps/world-test.sdf
