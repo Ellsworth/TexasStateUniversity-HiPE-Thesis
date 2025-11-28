@@ -1,3 +1,6 @@
 [submodule "subt"]
 	path = assets/subt
 	url = https://github.com/osrf/subt
+[submodule "ros2_ws/ros_tutorials"]
+	path = ros2_ws/ros_tutorials
+	url = https://github.com/ros/ros_tutorials.git
