@@ -20,12 +20,11 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ./assets/models/:/root/.gz/fuel:rw
       - ./:/workspace
-
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
-        cd /workspace &&
-        colcon build --symlink-install &&
-        source install/setup.bash &&
+        cd /workspace/ros2_ws &&               # 1. Enter the specific ROS 2 workspace
+        colcon build --symlink-install &&      # 2. Build only what is in this folder
+        source install/setup.bash &&           # 3. Source the result (inside ros2_ws)
         ros2 launch firebot-rl run_gz.launch.py
       "
