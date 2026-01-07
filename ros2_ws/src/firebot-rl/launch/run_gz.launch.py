@@ -1,27 +1,33 @@
+import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, LogInfo
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, TextSubstitution
 from launch_ros.substitutions import FindPackageShare
 from ament_index_python.packages import get_package_share_directory
-from launch.substitutions import TextSubstitution
-from launch.actions import LogInfo
-
 from launch_ros.actions import Node
-
 
 def generate_launch_description():
     # -----------------------------
-    # Gazebo Harmonic (ros_gz_sim)
+    # Paths & Setup
     # -----------------------------
+    pkg_share = get_package_share_directory("firebot-rl")
+    
     ros_gz_share = get_package_share_directory("ros_gz_sim")
     gz_sim_launch = PathJoinSubstitution([ros_gz_share, "launch", "gz_sim.launch.py"])
 
-    world = PathJoinSubstitution(
-        [FindPackageShare("firebot-rl"), "assets", "world-test.sdf"]
+    world = PathJoinSubstitution([pkg_share, "assets", "world-test.sdf"])
+    
+    # We use os.path.join here so we can open the file immediately for the publisher
+    robot_sdf_path = os.path.join(
+        pkg_share, 'assets', 'marble_hd2_sensor_config_4', '11', 'model.sdf'
     )
 
-    log = LogInfo(msg=["Resolved world path = ", world])
+    # -----------------------------
+    # Nodes & Actions
+    # -----------------------------
+    
+    log_world_path = LogInfo(msg=["Resolved world path = ", world])
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(gz_sim_launch),
@@ -30,68 +36,55 @@ def generate_launch_description():
         }.items(),
     )
 
-    robot_sdf = PathJoinSubstitution([
-        FindPackageShare('firebot-rl'),
-            'assets',
-            'marble_hd2_sensor_config_4',
-            '11',
-            'model.sdf'
-    ])
-
     spawn_robot = Node(
         package="ros_gz_sim",
         executable="create",
         output="screen",
         arguments=[
-            "-file",
-            robot_sdf,
-            "-name",
-            "marble_hd2",
-            "-x",
-            "5",
-            "-y",
-            "30",
-            "-z",
-            "7.5",
+            "-file", robot_sdf_path,
+            "-name", "marble_hd2",
+            "-x", "5", "-y", "30", "-z", "7.5",
         ],
     )
 
-    # -----------------------------
-    # RViz2
-    # -----------------------------
-    rviz = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="screen",
-        arguments=[
-            "-d",
-            PathJoinSubstitution([
-                FindPackageShare("firebot-rl"),
-                "rviz",
-                "firebot_nav.rviz"
-            ])
-        ]
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='both',
+        parameters=[{
+            'use_sim_time': True,
+            # Read the file content directly using the absolute path
+            'robot_description': open(robot_sdf_path).read(),
+        }]
     )
 
+    bridge_config = PathJoinSubstitution([pkg_share, 'config', 'bridge_config.yaml'])
 
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
         name="parameter_bridge",
-        parameters=[{
-            "bridge_names": ["front_laser"],
-
-            "bridges.front_laser.ros_topic_name": "/marble_hd2/scan/front",
-            "bridges.front_laser.gz_topic_name": "/world/shapes/model/marble_hd2/link/base_link/sensor/front_laser/scan",
-            "bridges.front_laser.ros_type_name": "sensor_msgs/msg/LaserScan",
-            "bridges.front_laser.gz_type_name": "gz.msgs.LaserScan",
-            "bridges.front_laser.direction": "GZ_TO_ROS",
-            "bridges.front_laser.lazy": False,
-        }]
+        parameters=[{'config_file': bridge_config}],
+        output="screen"
     )
 
-    
+    rviz = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", os.path.join(pkg_share, "rviz", "firebot_nav.rviz")]
+    )
 
+    log_bridge = LogInfo(msg=["Using Bridge Config: ", bridge_config])
 
-    return LaunchDescription([log, gazebo, spawn_robot, rviz, bridge])
+    return LaunchDescription([
+        log_world_path, 
+        log_bridge,
+        gazebo, 
+        spawn_robot, 
+        robot_state_publisher, 
+        bridge, 
+        rviz
+    ])

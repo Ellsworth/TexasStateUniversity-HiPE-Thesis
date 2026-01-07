@@ -1,6 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
 <sdf version="1.6">
     <model name="marble_hd2_sensor_config_4">
+        <link name="base_footprint"/>
+
+        <joint name="base_footprint_joint" type="fixed">
+            <parent>base_footprint</parent>
+            <child>base_link</child>
+            <pose>0 0 0 0 0 0</pose>
+        </joint>
+
         <link name="base_link">
             <pose frame="">0 0 0 0 -0 0</pose>
             <inertial>
@@ -582,19 +590,32 @@
             <child>right_track</child>
             <parent>base_link</parent>
         </joint>
-        <plugin name="ignition::gazebo::systems::TrackController" filename="libignition-gazebo-track-controller-system.so">
+        <plugin
+            filename="gz-sim-track-controller-system"
+            name="gz::sim::systems::TrackController">
             <link>left_track</link>
             <min_velocity>-1</min_velocity>
             <max_velocity>1</max_velocity>
             <min_acceleration>-3</min_acceleration>
             <max_acceleration>3</max_acceleration>
         </plugin>
-        <plugin name="ignition::gazebo::systems::TrackController" filename="libignition-gazebo-track-controller-system.so">
+
+        <plugin
+            filename="gz-sim-track-controller-system"
+            name="gz::sim::systems::TrackController">
             <link>right_track</link>
             <min_velocity>-1</min_velocity>
             <max_velocity>1</max_velocity>
             <min_acceleration>-3</min_acceleration>
             <max_acceleration>3</max_acceleration>
+        </plugin>
+        <plugin
+            filename="gz-sim-odometry-publisher-system"
+            name="gz::sim::systems::OdometryPublisher">
+            <odom_frame>odom</odom_frame>
+            <robot_base_frame>base_link</robot_base_frame>
+            <odom_publish_frequency>50</odom_publish_frequency>
+            <topic>/model/marble_hd2/odometry</topic>
         </plugin>
         <!-- Gimbal Links + Joints -->
         <link name="pan_gimbal_link">
@@ -825,19 +846,27 @@
             </axis>
         </joint>
         <!-- Gimbal Joints Plugins -->
-        <plugin filename="libignition-gazebo-joint-controller-system.so" name="ignition::gazebo::systems::JointController">
+        <plugin 
+            filename="gz-sim-joint-controller-system" 
+            name="gz::sim::systems::JointController">
             <joint_name>pan_gimbal_joint</joint_name>
             <use_force_commands>true</use_force_commands>
             <p_gain>0.4</p_gain>
             <i_gain>10</i_gain>
         </plugin>
-        <plugin filename="libignition-gazebo-joint-controller-system.so" name="ignition::gazebo::systems::JointController">
+
+        <plugin 
+            filename="gz-sim-joint-controller-system" 
+            name="gz::sim::systems::JointController">
             <joint_name>tilt_gimbal_joint</joint_name>
             <use_force_commands>true</use_force_commands>
             <p_gain>0.4</p_gain>
             <i_gain>10</i_gain>
         </plugin>
-        <plugin filename="libignition-gazebo-joint-state-publisher-system.so" name="ignition::gazebo::systems::JointStatePublisher">
+
+        <plugin 
+            filename="gz-sim-joint-state-publisher-system" 
+            name="gz::sim::systems::JointStatePublisher">
             <joint_name>pan_gimbal_joint</joint_name>
             <joint_name>tilt_gimbal_joint</joint_name>
         </plugin>
