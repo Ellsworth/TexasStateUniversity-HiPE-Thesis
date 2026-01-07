@@ -4,8 +4,8 @@
   gz_type_name: "gz.msgs.Clock"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/marble_hd2/scan/front"
-  gz_topic_name: "/world/shapes/model/marble_hd2/link/base_link/sensor/front_laser/scan"
+- ros_topic_name: "/marble_hd2/scan"
+  gz_topic_name: "/world/shapes/model/marble_hd2/link/lidar_link/sensor/planar_laser/scan"
   ros_type_name: "sensor_msgs/msg/LaserScan"
   gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS

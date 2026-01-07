@@ -321,79 +321,6 @@
             </sensor>
             <gravity>1</gravity>
             <velocity_decay/>
-            <!-- Based on RPLidar S1 -->
-            <sensor name="planar_laser" type="gpu_ray">
-                <pose>0.403 0 0.127 0 -0 0</pose>
-                <update_rate>10</update_rate>
-                <lidar>
-                    <scan>
-                        <horizontal>
-                            <samples>920</samples>
-                            <resolution>1</resolution>
-                            <min_angle>-3.14159</min_angle>
-                            <max_angle>3.14159</max_angle>
-                        </horizontal>
-                    </scan>
-                    <range>
-                        <min>0.04</min>
-                        <max>25</max>
-                        <resolution>0.03</resolution>
-                    </range>
-                    <noise>
-                        <type>gaussian</type>
-                        <mean>0</mean>
-                        <stddev>0.01</stddev>
-                    </noise>
-                </lidar>
-            </sensor>
-            <gravity>1</gravity>
-            <velocity_decay/>
-            <!-- OS1-64 3D Laser Configuration (10x2048 or 10x1024 or 20x1024 or 20x512 as possible (rate) x (hor. res.) configs)-->
-            <sensor name="front_laser" type="gpu_lidar">
-                <update_rate>20</update_rate>
-                <lidar>
-                    <scan>
-                        <horizontal>
-                            <samples>1024</samples>
-                            <resolution>1</resolution>
-                            <min_angle>-3.14159</min_angle>
-                            <max_angle>3.14159</max_angle>
-                        </horizontal>
-                        <vertical>
-                            <samples>64</samples>
-                            <resolution>1</resolution>
-                            <min_angle>-0.2897</min_angle>
-                            <max_angle>0.2897</max_angle>
-                        </vertical>
-                    </scan>
-                    <range>
-                        <min>0.8</min>
-                        <max>120</max>
-                        <resolution>0.003</resolution>
-                    </range>
-                    <noise>
-                        <type>gaussian</type>
-                        <mean>0</mean>
-                        <stddev>0.03</stddev>
-                    </noise>
-                </lidar>
-                <pose frame="">0.403 0 0.36 0 -0 0</pose>
-            </sensor>
-
-            <sensor name="imu_sensor" type="imu">
-                <always_on>1</always_on>
-                <update_rate>100</update_rate>
-                <visualize>true</visualize>
-                <topic>imu</topic>
-                <pose>0 0 0 0 0 0</pose>
-                <imu>
-                    <enable_orientation>1</enable_orientation>
-                </imu>
-                <plugin
-                    filename="gz-sim-imu-system"
-                    name="gz::sim::systems::Imu">
-                </plugin>
-            </sensor>
 
         </link>
         <!-- Left Track  -->
@@ -590,6 +517,98 @@
             <child>right_track</child>
             <parent>base_link</parent>
         </joint>
+
+        <link name="imu_link"> 
+            <pose>0 0 0 0 0 0</pose>
+            <sensor name="imu_sensor" type="imu">
+                <always_on>1</always_on>
+                <update_rate>100</update_rate>
+                <visualize>true</visualize>
+                <topic>imu</topic>
+                <frame_id>imu_link</frame_id>
+                <pose>0 0 0 0 0 0</pose>
+                <imu>
+                    <enable_orientation>1</enable_orientation>
+                </imu>
+                <plugin
+                    filename="gz-sim-imu-system"
+                    name="gz::sim::systems::Imu">
+                </plugin>
+            </sensor>
+        </link>
+
+        <joint name="imu_joint" type="fixed">
+            <parent>base_link</parent>
+            <child>imu_link</child>
+        </joint>
+
+        <link name="lidar_link">
+            <pose>0.403 0 0.36 0 0 0</pose>
+            <!-- Based on RPLidar S1 -->
+            <sensor name="planar_laser" type="gpu_ray">
+                <pose>0.403 0 0.127 0 -0 0</pose>
+                <update_rate>10</update_rate>
+                <lidar>
+                    <scan>
+                        <horizontal>
+                            <samples>920</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-3.14159</min_angle>
+                            <max_angle>3.14159</max_angle>
+                        </horizontal>
+                    </scan>
+                    <range>
+                        <min>0.04</min>
+                        <max>25</max>
+                        <resolution>0.03</resolution>
+                    </range>
+                    <noise>
+                        <type>gaussian</type>
+                        <mean>0</mean>
+                        <stddev>0.01</stddev>
+                    </noise>
+                </lidar>
+            </sensor>
+            <gravity>1</gravity>
+            <velocity_decay/>
+            <!-- OS1-64 3D Laser Configuration (10x2048 or 10x1024 or 20x1024 or 20x512 as possible (rate) x (hor. res.) configs)-->
+            <sensor name="front_laser" type="gpu_lidar">
+                <update_rate>20</update_rate>
+                <lidar>
+                    <scan>
+                        <horizontal>
+                            <samples>1024</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-3.14159</min_angle>
+                            <max_angle>3.14159</max_angle>
+                        </horizontal>
+                        <vertical>
+                            <samples>64</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.2897</min_angle>
+                            <max_angle>0.2897</max_angle>
+                        </vertical>
+                    </scan>
+                    <range>
+                        <min>0.8</min>
+                        <max>120</max>
+                        <resolution>0.003</resolution>
+                    </range>
+                    <noise>
+                        <type>gaussian</type>
+                        <mean>0</mean>
+                        <stddev>0.03</stddev>
+                    </noise>
+                </lidar>
+                <pose frame="">0.403 0 0.36 0 -0 0</pose>
+            </sensor>
+        </link>
+
+        <joint name="lidar_joint" type="fixed">
+            <parent>base_link</parent>
+            <child>lidar_link</child>
+        </joint>
+
         <plugin
             filename="gz-sim-track-controller-system"
             name="gz::sim::systems::TrackController">

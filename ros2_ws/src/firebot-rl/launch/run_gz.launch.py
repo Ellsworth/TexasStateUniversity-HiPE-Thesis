@@ -79,6 +79,17 @@ def generate_launch_description():
 
     log_bridge = LogInfo(msg=["Using Bridge Config: ", bridge_config])
 
+    slam_params = os.path.join(pkg_share, "config", "slam_toolbox.yaml")
+
+    slam_toolbox = Node(
+        package="slam_toolbox",
+        executable="sync_slam_toolbox_node",   # use async only if needed
+        name="slam_toolbox",
+        output="screen",
+        parameters=[slam_params],
+    )
+
+
     return LaunchDescription([
         log_world_path, 
         log_bridge,
@@ -86,5 +97,6 @@ def generate_launch_description():
         spawn_robot, 
         robot_state_publisher, 
         bridge, 
-        rviz
+        rviz,
+        slam_toolbox,
     ])
