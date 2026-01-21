@@ -573,6 +573,7 @@
             <velocity_decay/>
             <!-- OS1-64 3D Laser Configuration (10x2048 or 10x1024 or 20x1024 or 20x512 as possible (rate) x (hor. res.) configs)-->
             <sensor name="front_laser" type="gpu_lidar">
+                <gz_frame_id>lidar_link</gz_frame_id> ...
                 <update_rate>20</update_rate>
                 <lidar>
                     <scan>
