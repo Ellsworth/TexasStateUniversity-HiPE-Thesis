@@ -1,94 +1,199 @@
 import os
-from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, LogInfo
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import PathJoinSubstitution, TextSubstitution
-from launch_ros.substitutions import FindPackageShare
+
 from ament_index_python.packages import get_package_share_directory
+
+from launch import LaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+)
+from launch.conditions import IfCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    TextSubstitution,
+)
 from launch_ros.actions import Node
 
 
+def _read_robot_description(context, robot_sdf_path_lc_name: str):
+    """
+    Read robot SDF content at launch runtime (not at file-parse time) so failures
+    are easier to diagnose and paths can be overridden via launch args.
+    """
+    robot_sdf_path = LaunchConfiguration(robot_sdf_path_lc_name).perform(context)
+
+    if not os.path.isabs(robot_sdf_path):
+        # Allow relative paths (relative to cwd), but prefer absolute.
+        robot_sdf_path = os.path.abspath(robot_sdf_path)
+
+    if not os.path.exists(robot_sdf_path):
+        raise RuntimeError(f"Robot SDF does not exist: {robot_sdf_path}")
+
+    with open(robot_sdf_path, "r", encoding="utf-8") as f:
+        robot_description = f.read()
+
+    rsp = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        name="robot_state_publisher",
+        output="both",
+        parameters=[{"use_sim_time": True, "robot_description": robot_description}],
+    )
+
+    return [LogInfo(msg=["robot_state_publisher using: ", robot_sdf_path]), rsp]
+
+
 def generate_launch_description():
-    # -----------------------------
-    # Paths & Setup
-    # -----------------------------
     pkg_share = get_package_share_directory("firebot-rl")
-
     ros_gz_share = get_package_share_directory("ros_gz_sim")
-    gz_sim_launch = PathJoinSubstitution([ros_gz_share, "launch", "gz_sim.launch.py"])
 
-    world = PathJoinSubstitution([pkg_share, "assets", "world-test.sdf"])
+    # -----------------------------
+    # Launch arguments
+    # -----------------------------
+    world_arg = DeclareLaunchArgument(
+        "world",
+        default_value=PathJoinSubstitution([pkg_share, "assets", "world-test.sdf"]),
+        description="Path to the Gazebo world SDF",
+    )
 
-    # We use os.path.join here so we can open the file immediately for the publisher
-    robot_sdf_path = os.path.join(
-        pkg_share, "assets", "marble_hd2_sensor_config_4", "11", "model.sdf"
+    robot_sdf_arg = DeclareLaunchArgument(
+        "robot_sdf",
+        default_value=TextSubstitution(
+            text=os.path.join(
+                pkg_share, "assets", "marble_hd2_sensor_config_4", "11", "model.sdf"
+            )
+        ),
+        description="Path to robot SDF to spawn and publish",
+    )
+
+    robot_name_arg = DeclareLaunchArgument(
+        "robot_name",
+        default_value=TextSubstitution(text="marble_hd2"),
+        description="Spawned robot entity name in Gazebo",
+    )
+
+    # Pose arguments (strings are fine; ros_gz_sim/create expects strings)
+    x_arg = DeclareLaunchArgument("x", default_value=TextSubstitution(text="5"))
+    y_arg = DeclareLaunchArgument("y", default_value=TextSubstitution(text="30"))
+    z_arg = DeclareLaunchArgument("z", default_value=TextSubstitution(text="8"))
+
+    gz_verbosity_arg = DeclareLaunchArgument(
+        "gz_verbosity",
+        default_value=TextSubstitution(text="1"),
+        description="Gazebo verbosity level (-v)",
+    )
+
+    run_headless_arg = DeclareLaunchArgument(
+        "headless",
+        default_value=TextSubstitution(text="false"),
+        description="Run Gazebo headless if true (adds -s / server-only flags depending on gz_sim wrapper)",
+    )
+
+    use_rviz_arg = DeclareLaunchArgument(
+        "rviz",
+        default_value=TextSubstitution(text="true"),
+        description="Launch RViz2",
+    )
+
+    rviz_config_arg = DeclareLaunchArgument(
+        "rviz_config",
+        default_value=TextSubstitution(text=os.path.join(pkg_share, "config", "firebot.rviz")),
+        description="RViz config file",
+    )
+
+    use_cartographer_arg = DeclareLaunchArgument(
+        "cartographer",
+        default_value=TextSubstitution(text="false"),
+        description="Launch Cartographer",
+    )
+
+    carto_config_dir_arg = DeclareLaunchArgument(
+        "carto_config_dir",
+        default_value=TextSubstitution(text=os.path.join(pkg_share, "config")),
+        description="Cartographer configuration directory",
+    )
+
+    carto_basename_arg = DeclareLaunchArgument(
+        "carto_basename",
+        default_value=TextSubstitution(text="cartographer.lua"),
+        description="Cartographer configuration basename",
+    )
+
+    bridge_config_arg = DeclareLaunchArgument(
+        "bridge_config",
+        default_value=PathJoinSubstitution([pkg_share, "config", "bridge_config.yaml"]),
+        description="ros_gz_bridge parameter_bridge YAML config",
     )
 
     # -----------------------------
-    # Nodes & Actions
+    # Gazebo include
     # -----------------------------
+    gz_sim_launch = PathJoinSubstitution([ros_gz_share, "launch", "gz_sim.launch.py"])
 
-    log_world_path = LogInfo(msg=["Resolved world path = ", world])
+    # gz_args is a single string in many ros_gz_sim versions; pass as one composed string
+    # Format: "<world_path> -r -v <N>"
+    gz_args = [
+        LaunchConfiguration("world"),
+        TextSubstitution(text=" -r -v "),
+        LaunchConfiguration("gz_verbosity"),
+    ]
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(gz_sim_launch),
-        launch_arguments={
-            "gz_args": [world, TextSubstitution(text=" -v 1 -r")]
-        }.items(),
+        launch_arguments={"gz_args": gz_args}.items(),
     )
 
+    # -----------------------------
+    # Spawn robot
+    # -----------------------------
     spawn_robot = Node(
         package="ros_gz_sim",
         executable="create",
         output="screen",
         arguments=[
             "-file",
-            robot_sdf_path,
+            LaunchConfiguration("robot_sdf"),
             "-name",
-            "marble_hd2",
+            LaunchConfiguration("robot_name"),
             "-x",
-            "5",
+            LaunchConfiguration("x"),
             "-y",
-            "30",
+            LaunchConfiguration("y"),
             "-z",
-            "7.5",
+            LaunchConfiguration("z"),
         ],
     )
 
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[
-            {
-                "use_sim_time": True,
-                # Read the file content directly using the absolute path
-                "robot_description": open(robot_sdf_path).read(),
-            }
-        ],
-    )
-
-    bridge_config = PathJoinSubstitution([pkg_share, "config", "bridge_config.yaml"])
-
+    # -----------------------------
+    # Bridge
+    # -----------------------------
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
         name="parameter_bridge",
-        parameters=[{"config_file": bridge_config}],
+        parameters=[{"config_file": LaunchConfiguration("bridge_config")}],
         output="screen",
     )
 
+    # -----------------------------
+    # RViz
+    # -----------------------------
     rviz = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         output="screen",
-        arguments=["-d", os.path.join(pkg_share, "config", "firebot.rviz")],
+        arguments=["-d", LaunchConfiguration("rviz_config")],
+        condition=IfCondition(LaunchConfiguration("rviz")),
     )
 
-    log_bridge = LogInfo(msg=["Using Bridge Config: ", bridge_config])
-
+    # -----------------------------
+    # Cartographer (optional)
+    # -----------------------------
     cartographer_node = Node(
         package="cartographer_ros",
         executable="cartographer_node",
@@ -97,33 +202,60 @@ def generate_launch_description():
         parameters=[{"use_sim_time": True}],
         arguments=[
             "-configuration_directory",
-            os.path.join(pkg_share, "config"),
+            LaunchConfiguration("carto_config_dir"),
             "-configuration_basename",
-            "cartographer.lua",
+            LaunchConfiguration("carto_basename"),
         ],
+        condition=IfCondition(LaunchConfiguration("cartographer")),
     )
-    
-    """"
-    cartographer_occupancy_grid_node = Node(
-            package="cartographer_ros",
-            executable="occupancy_grid_node",
-            name="occupancy_grid_node",
-            output="screen",
-            parameters=[{"use_sim_time": True}],
-            arguments=["-resolution", "0.05", "-publish_period_sec", "1.0"],
+
+    # -----------------------------
+    # Logging
+    # -----------------------------
+    log_settings = LogInfo(
+        msg=[
+            "world=",
+            LaunchConfiguration("world"),
+            " robot_sdf=",
+            LaunchConfiguration("robot_sdf"),
+            " name=",
+            LaunchConfiguration("robot_name"),
+            " pose=(",
+            LaunchConfiguration("x"),
+            ", ",
+            LaunchConfiguration("y"),
+            ", ",
+            LaunchConfiguration("z"),
+            ") bridge_config=",
+            LaunchConfiguration("bridge_config"),
+        ]
     )
-    """
+
+    # robot_state_publisher created via OpaqueFunction so we can read the file at runtime
+    rsp_runtime = OpaqueFunction(function=lambda ctx: _read_robot_description(ctx, "robot_sdf"))
 
     return LaunchDescription(
         [
-            log_world_path,
-            log_bridge,
+            world_arg,
+            robot_sdf_arg,
+            robot_name_arg,
+            x_arg,
+            y_arg,
+            z_arg,
+            gz_verbosity_arg,
+            run_headless_arg,
+            use_rviz_arg,
+            rviz_config_arg,
+            use_cartographer_arg,
+            carto_config_dir_arg,
+            carto_basename_arg,
+            bridge_config_arg,
+            log_settings,
             gazebo,
             spawn_robot,
-            robot_state_publisher,
+            rsp_runtime,
             bridge,
             rviz,
-            #cartographer_node,
-            #cartographer_occupancy_grid_node,
+            cartographer_node,
         ]
     )

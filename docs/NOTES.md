@@ -12,3 +12,10 @@
 * Divert to getting the HD2 moving
 
 ## January 22
+
+```bash
+gz topic -t /model/marble_hd2/link/left_track/track_cmd_vel  -m gz.msgs.Double -p 'data: 1.0'
+gz topic -t /model/marble_hd2/link/right_track/track_cmd_vel -m gz.msgs.Double -p 'data: 1.0'
+```
+
+This worked! ```/cmd_vel``` works as well. 

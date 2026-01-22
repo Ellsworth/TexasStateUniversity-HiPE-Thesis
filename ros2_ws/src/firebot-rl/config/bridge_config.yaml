@@ -16,14 +16,14 @@
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/odom"
-  gz_topic_name: "/model/marble_hd2/odometry"
-  ros_type_name: "nav_msgs/msg/Odometry"
-  gz_type_name: "gz.msgs.Odometry"
-  direction: GZ_TO_ROS
-
 - ros_topic_name: "/marble_hd2/camera/front/image"
   gz_topic_name: "/world/shapes/model/marble_hd2/link/base_link/sensor/camera_front/image"
   ros_type_name: "sensor_msgs/msg/Image"
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
+
+- ros_topic_name: "/model/marble_hd2/cmd_vel"
+  gz_topic_name: "/model/marble_hd2/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
