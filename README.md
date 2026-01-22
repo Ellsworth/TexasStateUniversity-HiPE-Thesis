@@ -15,4 +15,4 @@
 2. Make sure you have ```podman-compose``` or ```docker-compose``` installed.
 3. Clone this repository ```git clone git@github.com:Ellsworth/TexasStateUniversity-HiPE-Thesis.git```
 4. ```cd TexasStateUniversity-HiPE-Thesis```
-5. Launch it! ```podman compose up```
+5. Launch it! ```podman compose -f compose-amd.yml up```
