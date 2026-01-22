@@ -84,7 +84,7 @@ def generate_launch_description():
         executable="rviz2",
         name="rviz2",
         output="screen",
-        arguments=["-d", os.path.join(pkg_share, "rviz", "firebot_nav.rviz")],
+        arguments=["-d", os.path.join(pkg_share, "config", "firebot.rviz")],
     )
 
     log_bridge = LogInfo(msg=["Using Bridge Config: ", bridge_config])

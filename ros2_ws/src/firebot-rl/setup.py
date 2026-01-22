@@ -21,8 +21,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', glob('launch/*.launch.py')), # Launch files
-        ('share/' + package_name + '/config', glob('config/*.yaml')), # Config files
-        # ('share/' + package_name + '/config', glob('config/*.lua')),
+        ('share/' + package_name + '/config', glob('config/*')), # Config files
     ] + asset_files,
     install_requires=['setuptools'],
     zip_safe=True,
