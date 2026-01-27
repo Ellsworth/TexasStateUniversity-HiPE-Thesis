@@ -554,6 +554,7 @@
                 <visualize>true</visualize>
                 <topic>imu</topic>
                 <frame_id>imu_link</frame_id>
+                <gz_frame_id>imu_link</gz_frame_id>
                 <pose>0 0 0 0 0 0</pose>
                 <imu>
                     <enable_orientation>1</enable_orientation>

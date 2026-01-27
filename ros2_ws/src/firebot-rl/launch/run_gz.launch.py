@@ -107,7 +107,7 @@ def generate_launch_description():
 
     use_cartographer_arg = DeclareLaunchArgument(
         "cartographer",
-        default_value=TextSubstitution(text="false"),
+        default_value=TextSubstitution(text="true"),
         description="Launch Cartographer",
     )
 
@@ -175,7 +175,7 @@ def generate_launch_description():
         package="ros_gz_bridge",
         executable="parameter_bridge",
         name="parameter_bridge",
-        parameters=[{"config_file": LaunchConfiguration("bridge_config")}],
+        parameters=[{"config_file": LaunchConfiguration("bridge_config")}, {'use_sim_time': True}],
         output="screen",
     )
 
@@ -192,8 +192,9 @@ def generate_launch_description():
     )
 
     # -----------------------------
-    # Cartographer (optional)
+    # Cartographer
     # -----------------------------
+
     cartographer_node = Node(
         package="cartographer_ros",
         executable="cartographer_node",
@@ -201,13 +202,26 @@ def generate_launch_description():
         output="screen",
         parameters=[{"use_sim_time": True}],
         arguments=[
-            "-configuration_directory",
-            LaunchConfiguration("carto_config_dir"),
-            "-configuration_basename",
-            LaunchConfiguration("carto_basename"),
+            "-configuration_directory", LaunchConfiguration("carto_config_dir"),
+            "-configuration_basename", LaunchConfiguration("carto_basename"),
+        ],
+        remappings=[
+            ("points2", "/marble_hd2/scan"),
+            ("imu", "/marble_hd2/imu"),
         ],
         condition=IfCondition(LaunchConfiguration("cartographer")),
     )
+
+    occupancy_grid_node = Node(
+        package='cartographer_ros',
+        executable='cartographer_occupancy_grid_node',
+        name='cartographer_occupancy_grid_node',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+        # -resolution: size of map pixels in meters
+        # -publish_period_sec: how often to refresh the map in RViz
+        arguments=['-resolution', '0.1', '-publish_period_sec', '0.1']
+        )
 
     # -----------------------------
     # Logging
@@ -257,5 +271,6 @@ def generate_launch_description():
             bridge,
             rviz,
             cartographer_node,
+            occupancy_grid_node,
         ]
     )

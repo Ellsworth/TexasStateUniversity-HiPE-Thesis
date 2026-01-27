@@ -19,3 +19,9 @@ gz topic -t /model/marble_hd2/link/right_track/track_cmd_vel -m gz.msgs.Double -
 ```
 
 This worked! ```/cmd_vel``` works as well. 
+
+# January 27
+
+Cartographer runs with the following command.
+
+```/opt/ros/jazzy/lib/cartographer_ros/cartographer_node -configuration_directory /workspace/ros2_ws/install/firebot-rl/share/firebot-rl/config -configuration_basename cartographer.lua```
