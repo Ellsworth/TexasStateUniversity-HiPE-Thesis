@@ -24,7 +24,7 @@ This worked! ```/cmd_vel``` works as well.
 
 Cartographer works, but the provided 2D occupancy grid leaves some to be desired. Things like ledges aren't depicted well in the map.
 
-> Next steps: Get the Cartographer 3D map visualized in RViz, it uses a custom message. Might want to figure out how to get RViz to load the plugin
+> TODO: Get the Cartographer 3D map visualized in RViz, it uses a custom message. Might want to figure out how to get RViz to load the plugin
 
 ```
 root@hipe6-thrc:/workspace# ros2 topic info /submap_list
@@ -33,3 +33,9 @@ Publisher count: 1
 Subscription count: 1
 root@hipe6-thrc:/workspace# 
 ```
+
+> The map seems to jitter/drift over time. Need to find out why.
+
+# January 28
+
+Got the windowed 'grid view' for the SLAM data working. Seems to work okay, but there's likely plenty of tuning that needs to be done here.
