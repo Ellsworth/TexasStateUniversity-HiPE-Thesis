@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 from glob import glob
 import os
 
-package_name = 'firebot-rl'
+package_name = 'firebot_rl'
 
 # Recursively collect all files inside assets/
 asset_files = [
