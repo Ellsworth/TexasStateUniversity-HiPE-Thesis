@@ -5,3 +5,6 @@ assets/models_old/
 build/
 log/
 install/
+
+# Python cache folder
+__pycache__/
