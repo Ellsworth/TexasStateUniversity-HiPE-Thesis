@@ -29,4 +29,10 @@ setup(
     maintainer_email='root@todo.todo',
     description='TODO: Package description',
     license='Apache-2.0',
+    entry_points={
+        'console_scripts': [
+                'grid_window_publisher = firebot_rl.local_grid_window:main',
+                'grid_window_plotter = firebot_rl.local_grid_plotter:main',
+        ],
+    },
 )

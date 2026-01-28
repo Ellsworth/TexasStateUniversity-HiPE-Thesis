@@ -221,7 +221,7 @@ def generate_launch_description():
         # -resolution: size of map pixels in meters
         # -publish_period_sec: how often to refresh the map in RViz
         arguments=['-resolution', '0.25', '-publish_period_sec', '0.1']
-        )
+    )
 
     # -----------------------------
     # Logging
@@ -248,6 +248,24 @@ def generate_launch_description():
     # robot_state_publisher created via OpaqueFunction so we can read the file at runtime
     rsp_runtime = OpaqueFunction(function=lambda ctx: _read_robot_description(ctx, "robot_sdf"))
 
+    grid_window_plotter = Node(
+        package='firebot_rl',
+        executable='grid_window_plotter',
+        name='grid_window_plotter',
+        output='screen',
+        parameters=[{'refresh_hz': 10.0}],
+        arguments=[]
+    )
+
+    grid_window_publisher = Node(
+        package='firebot_rl',
+        executable='grid_window_publisher',
+        name='grid_window_publisher',
+        output='screen',
+        parameters=[{'publish_hz': 10.0}],
+        arguments=[]
+    )
+
     return LaunchDescription(
         [
             world_arg,
@@ -272,5 +290,7 @@ def generate_launch_description():
             rviz,
             cartographer_node,
             occupancy_grid_node,
+            grid_window_plotter,
+            grid_window_publisher
         ]
     )
