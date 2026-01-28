@@ -8,3 +8,6 @@ shell:
 
 clean:
   rm -r ros2_ws/build/ ros2_ws/install/ ros2_ws/log/
+
+stop:
+  podman compose down
