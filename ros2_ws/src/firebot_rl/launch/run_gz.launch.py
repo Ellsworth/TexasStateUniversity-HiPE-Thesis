@@ -48,7 +48,7 @@ def _read_robot_description(context, robot_sdf_path_lc_name: str):
 
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory("firebot-rl")
+    pkg_share = get_package_share_directory("firebot_rl")
     ros_gz_share = get_package_share_directory("ros_gz_sim")
 
     # -----------------------------
@@ -220,7 +220,7 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}],
         # -resolution: size of map pixels in meters
         # -publish_period_sec: how often to refresh the map in RViz
-        arguments=['-resolution', '0.1', '-publish_period_sec', '0.1']
+        arguments=['-resolution', '0.25', '-publish_period_sec', '0.1']
         )
 
     # -----------------------------
