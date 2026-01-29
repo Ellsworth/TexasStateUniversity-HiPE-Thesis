@@ -8,7 +8,7 @@
 4. Make sure you have ```podman-compose``` or ```docker-compose``` installed.
 5. Clone this repository ```git clone git@github.com:Ellsworth/TexasStateUniversity-HiPE-Thesis.git```
 6. ```cd TexasStateUniversity-HiPE-Thesis```
-7. Enable X11 forwarding ```xhost +SI:localuser:root```
+7. Enable X11 forwarding ```xhost +SI:localuser:$USER```
 8. Launch it! ```podman compose up```
 
 ## Installing on AMD
@@ -16,5 +16,5 @@
 2. Make sure you have ```podman-compose``` or ```docker-compose``` installed.
 3. Clone this repository ```git clone git@github.com:Ellsworth/TexasStateUniversity-HiPE-Thesis.git```
 4. ```cd TexasStateUniversity-HiPE-Thesis```
-5. Enable X11 forwarding ```xhost +SI:localuser:root```
+5. Enable X11 forwarding ```xhost +SI:localuser:$USER```
 6. Launch it! ```podman compose -f compose-amd.yml up```
