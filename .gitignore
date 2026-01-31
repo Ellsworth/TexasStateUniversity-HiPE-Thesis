@@ -1,6 +1,4 @@
-assets/models_zip/*.zip
-assets/models/
-assets/models_old/
+.cache/
 
 build/
 log/
