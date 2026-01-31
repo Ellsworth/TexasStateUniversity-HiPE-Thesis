@@ -19,6 +19,8 @@ class RLZmqClient:
             "cmd_vel": cmd_vel,
             "reset": reset
         }
+
+        print(f"Sending cmd_vel: {cmd_vel}, reset: {reset}")
         
         # Send and wait for reply
         self.socket.send(msgpack.packb(payload))
@@ -30,12 +32,12 @@ class RLZmqClient:
 if __name__ == "__main__":
     env_client = RLZmqClient()
     
-    for episode in range(10):
+    for episode in range(100):
 
         cmd_vel = np.array([1.0, -0.5]) 
         result = env_client.step(cmd_vel, reset=False)
 
-        print(f"Episode {episode} | Result: {result.keys()}")
+        print(f"Episode {episode} | Result: {result.keys()}, Obs Shape: {result['observation'].shape}")
         
         #print(f"Received Obs: {result['observation']} | Reward: {result['reward']}")
         time.sleep(1)

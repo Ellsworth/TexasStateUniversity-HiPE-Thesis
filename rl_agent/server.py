@@ -41,7 +41,7 @@ class ROSZmqBridge:
     def step_gazebo(self, steps: int):
         # Placeholder for stepping the Gazebo simulation
         print(f"Stepping Gazebo for {steps} steps")
-        time.sleep(0.01)  # Simulate time delay
+        time.sleep(0.01 * steps)  # Simulate time delay
     
     def publish_cmd_vel(self, cmd_vel):
         # Placeholder for publishing cmd_vel to ROS topic
