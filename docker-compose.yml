@@ -27,7 +27,7 @@ services:
 
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./assets/models/:/root/.gz/fuel:rw
+      - ./.cache/fuel/:/root/.gz/fuel:rw
       - ./.cache/rosdep:/root/.ros/rosdep/sources.cache:rw
       - ./:/workspace:Z  # Added :Z for SELinux relabeling of your code
 

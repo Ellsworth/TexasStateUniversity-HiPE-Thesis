@@ -25,7 +25,7 @@ class MinimalBridge(Node):
         self.grid_width = 65
 
         # 1. ROS Setup
-        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.cmd_vel_pub = self.create_publisher(Twist, '/marble_hd2/cmd_vel', 10)
         self.create_subscription(Int16MultiArray, '/local_grid', self.grid_callback, 10)
 
         # 2. ZMQ Setup - Renamed to avoid ROS 2 conflict
