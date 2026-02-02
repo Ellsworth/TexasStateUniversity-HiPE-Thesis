@@ -32,12 +32,12 @@ class RLZmqClient:
 if __name__ == "__main__":
     env_client = RLZmqClient()
     
-    for episode in range(100):
+    while True:
 
         cmd_vel = np.array([1.0, -0.5]) 
         result = env_client.step(cmd_vel, reset=False)
 
-        print(f"Episode {episode} | Result: {result.keys()}")
+        print(f"Result: {result.keys()}")
 
         print(result["observation"])
         
