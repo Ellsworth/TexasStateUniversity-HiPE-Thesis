@@ -6,6 +6,9 @@ services:
     container_name: gazebo
     network_mode: host
     working_dir: /workspace
+    
+    ports:
+    - 5555:5555 # ZMQ Port
 
     environment:
       - DISPLAY=${DISPLAY}

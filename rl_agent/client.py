@@ -37,7 +37,9 @@ if __name__ == "__main__":
         cmd_vel = np.array([1.0, -0.5]) 
         result = env_client.step(cmd_vel, reset=False)
 
-        print(f"Episode {episode} | Result: {result.keys()}, Obs Shape: {result['observation'].shape}")
+        print(f"Episode {episode} | Result: {result.keys()}")
+
+        print(result["observation"])
         
         #print(f"Received Obs: {result['observation']} | Reward: {result['reward']}")
         time.sleep(1)

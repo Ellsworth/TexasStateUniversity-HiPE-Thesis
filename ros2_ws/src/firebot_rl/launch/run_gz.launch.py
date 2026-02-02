@@ -266,6 +266,15 @@ def generate_launch_description():
         arguments=[]
     )
 
+    zmq_bridge = Node(
+        package='firebot_rl',
+        executable='zmq_bridge',
+        name='zmq_bridge',
+        output='screen',
+        parameters=[],
+        arguments=[]
+    )
+
     return LaunchDescription(
         [
             world_arg,
@@ -291,6 +300,7 @@ def generate_launch_description():
             cartographer_node,
             occupancy_grid_node,
             grid_window_plotter,
-            grid_window_publisher
+            grid_window_publisher,
+            zmq_bridge,
         ]
     )
