@@ -3,6 +3,7 @@
 build/
 log/
 install/
+rl_agent/*.png
 
 # Python cache folder
 __pycache__/
