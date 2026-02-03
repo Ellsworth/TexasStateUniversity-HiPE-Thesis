@@ -39,3 +39,12 @@ root@hipe6-thrc:/workspace#
 # January 28
 
 Got the windowed 'grid view' for the SLAM data working. Seems to work okay, but there's likely plenty of tuning that needs to be done here.
+
+# February 3
+
+The world control service is setup, along with a basic ZeroMQ bridge for the RL agent to 'teleop' the robot.
+
+```ros2 service call /world/shapes/control ros_gz_interfaces/srv/ControlWorld \
+"{world_control: {multi_step: 10, pause: true}}"```
+
+We need to implement the state machine for Observe/Reward -> Act -> Run GZ for N ticks -> Repeat
