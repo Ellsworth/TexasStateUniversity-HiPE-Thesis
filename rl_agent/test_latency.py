@@ -69,8 +69,8 @@ def main():
         import matplotlib.pyplot as plt
         plt.figure(figsize=(10, 6))
         plt.hist(overhead_latencies, bins=50, color='orange', alpha=0.7, edgecolor='black')
-        plt.title(f"System Overhead Latency Distribution (n={len(latencies)}, steps={sim_steps})")
-        plt.xlabel("Overhead Latency (ms)")
+        plt.title(f"ZeroMQ Bridge Latency Distribution (n={len(latencies)}, steps={sim_steps})")
+        plt.xlabel("Latency (ms)")
         plt.ylabel("Frequency")
         plt.axvline(np.mean(overhead_latencies), color='red', linestyle='dashed', linewidth=1, label=f'Mean: {np.mean(overhead_latencies):.2f}ms')
         plt.axvline(np.median(overhead_latencies), color='green', linestyle='dashed', linewidth=1, label=f'Median: {np.median(overhead_latencies):.2f}ms')
