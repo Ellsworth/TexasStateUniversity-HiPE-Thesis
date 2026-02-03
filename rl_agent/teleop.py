@@ -122,6 +122,8 @@ def main():
             result = env_client.step(cmd_vel, reset=reset)
         except KeyboardInterrupt:
             break
+        
+        print(f"Received result: {result}")
 
         # Expect result["observation"] to already be a numpy array via msgpack_numpy
         obs = result.get("observation", None)
@@ -132,16 +134,17 @@ def main():
             if obs.dtype != np.int16:
                 obs = obs.astype(np.int16, copy=False)
 
-            # If observation can change shape, handle it
-            if im.get_array().shape != obs.shape:
-                im.set_data(obs)
-                ax.set_xlim(-0.5, obs.shape[1] - 0.5)
-                ax.set_ylim(obs.shape[0] - 0.5, -0.5)
-            else:
-                im.set_data(obs)
+            if obs.size > 0:
+                # If observation can change shape, handle it
+                if im.get_array().shape != obs.shape:
+                    im.set_data(obs)
+                    ax.set_xlim(-0.5, obs.shape[1] - 0.5)
+                    ax.set_ylim(obs.shape[0] - 0.5, -0.5)
+                else:
+                    im.set_data(obs)
 
-            # Optional: dynamic scaling per frame (comment out if you want fixed scaling)
-            im.autoscale()
+                # Dynamic scaling per frame
+                im.autoscale()
 
         fig.canvas.draw_idle()
         plt.pause(0.001)
