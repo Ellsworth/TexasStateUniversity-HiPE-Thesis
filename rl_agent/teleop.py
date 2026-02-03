@@ -4,26 +4,19 @@ import msgpack
 import msgpack_numpy as m
 import time
 import matplotlib.pyplot as plt
+import logging
 
 m.patch()
 
-class RLZmqClient:
-    def __init__(self, ip="127.0.0.1", port=5555):
-        self.context = zmq.Context.instance()
-        self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect(f"tcp://{ip}:{port}")
+# Configure logging with timestamp
+logging.basicConfig(
+    format='%(asctime)s.%(msecs)03d %(levelname)s:%(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO
+)
 
-    def step(self, cmd_vel: np.ndarray, reset: bool):
-        payload = {
-            "command": "step",
-            "cmd_vel": cmd_vel,   # np array, e.g. shape (2,)
-            "reset": reset
-        }
-
-        # Use msgpack options that behave well with numpy + bytes
-        self.socket.send(msgpack.packb(payload, use_bin_type=True))
-        message = self.socket.recv()
-        return msgpack.unpackb(message, raw=False)
+# RLZmqClient moved to firebot_rl.rl_zmq_client
+from firebot_rl.rl_zmq_client import RLZmqClient
 
 
 class TeleopState:
