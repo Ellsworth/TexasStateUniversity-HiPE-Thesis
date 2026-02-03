@@ -1,0 +1,40 @@
+<launch>
+  <ros_gz_bridge bridge_name="gz_bridge">
+    
+    <topic ros_topic_name="/clock"
+           gz_topic_name="/world/shapes/clock"
+           ros_type_name="rosgraph_msgs/msg/Clock"
+           gz_type_name="gz.msgs.Clock"
+           direction="GZ_TO_ROS"/>
+
+    <topic ros_topic_name="/marble_hd2/scan"
+           gz_topic_name="/world/shapes/model/marble_hd2/link/lidar_link/sensor/front_laser/scan/points"
+           ros_type_name="sensor_msgs/msg/PointCloud2"
+           gz_type_name="gz.msgs.PointCloudPacked"
+           direction="GZ_TO_ROS"/>
+
+    <topic ros_topic_name="/marble_hd2/imu"
+           gz_topic_name="/imu"
+           ros_type_name="sensor_msgs/msg/Imu"
+           gz_type_name="gz.msgs.IMU"
+           direction="GZ_TO_ROS"/>
+
+    <topic ros_topic_name="marble_hd2/camera/front/image"
+           gz_topic_name="/world/shapes/model/marble_hd2/link/base_link/sensor/camera_front/image"
+           ros_type_name="sensor_msgs/msg/Image"
+           gz_type_name="gz.msgs.Image"
+           direction="GZ_TO_ROS"/>
+
+    <topic ros_topic_name="/marble_hd2/cmd_vel"
+           gz_topic_name="/cmd_vel"
+           ros_type_name="geometry_msgs/msg/Twist"
+           gz_type_name="gz.msgs.Twist"
+           direction="ROS_TO_GZ"/>
+
+    <service service_name="/world/control"
+             ros_type_name="ros_gz_interfaces/srv/ControlWorld"
+             gz_req_type_name="gz.msgs.WorldControl"
+             gz_rep_type_name="gz.msgs.Boolean" />
+
+  </ros_gz_bridge>
+</launch>

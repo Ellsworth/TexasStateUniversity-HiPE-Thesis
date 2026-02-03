@@ -17,7 +17,7 @@ from launch.substitutions import (
     TextSubstitution,
 )
 from launch_ros.actions import Node
-
+from launch.launch_description_sources import AnyLaunchDescriptionSource
 
 def _read_robot_description(context, robot_sdf_path_lc_name: str):
     """
@@ -123,12 +123,6 @@ def generate_launch_description():
         description="Cartographer configuration basename",
     )
 
-    bridge_config_arg = DeclareLaunchArgument(
-        "bridge_config",
-        default_value=PathJoinSubstitution([pkg_share, "config", "bridge_config.yaml"]),
-        description="ros_gz_bridge parameter_bridge YAML config",
-    )
-
     # -----------------------------
     # Gazebo include
     # -----------------------------
@@ -145,6 +139,16 @@ def generate_launch_description():
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(gz_sim_launch),
         launch_arguments={"gz_args": gz_args}.items(),
+    )
+
+    # -----------------------------
+    # Read Gazebo-ROS bridge launchfile
+    # -----------------------------
+    bridge_xml = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            PathJoinSubstitution([pkg_share, "launch", "bridge.launch.xml"])
+        ),
+        launch_arguments={}.items(),
     )
 
     # -----------------------------
@@ -166,17 +170,6 @@ def generate_launch_description():
             "-z",
             LaunchConfiguration("z"),
         ],
-    )
-
-    # -----------------------------
-    # Bridge
-    # -----------------------------
-    bridge = Node(
-        package="ros_gz_bridge",
-        executable="parameter_bridge",
-        name="parameter_bridge",
-        parameters=[{"config_file": LaunchConfiguration("bridge_config")}, {'use_sim_time': True}],
-        output="screen",
     )
 
     # -----------------------------
@@ -240,8 +233,6 @@ def generate_launch_description():
             LaunchConfiguration("y"),
             ", ",
             LaunchConfiguration("z"),
-            ") bridge_config=",
-            LaunchConfiguration("bridge_config"),
         ]
     )
 
@@ -290,12 +281,11 @@ def generate_launch_description():
             use_cartographer_arg,
             carto_config_dir_arg,
             carto_basename_arg,
-            bridge_config_arg,
             log_settings,
             gazebo,
+            bridge_xml,
             spawn_robot,
             rsp_runtime,
-            bridge,
             rviz,
             cartographer_node,
             occupancy_grid_node,
