@@ -31,7 +31,7 @@
            gz_type_name="gz.msgs.Twist"
            direction="ROS_TO_GZ"/>
 
-    <service service_name="/world/control"
+    <service service_name="/world/shapes/control"
              ros_type_name="ros_gz_interfaces/srv/ControlWorld"
              gz_req_type_name="gz.msgs.WorldControl"
              gz_rep_type_name="gz.msgs.Boolean" />
