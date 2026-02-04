@@ -203,6 +203,8 @@ def generate_launch_description():
             ("imu", "/marble_hd2/imu"),
         ],
         condition=IfCondition(LaunchConfiguration("cartographer")),
+        respawn=True,
+        respawn_delay=2.0,
     )
 
     occupancy_grid_node = Node(
@@ -280,6 +282,7 @@ def generate_launch_description():
             rviz_config_arg,
             use_cartographer_arg,
             carto_config_dir_arg,
+            LogInfo(msg=['Cartographer config directory is: ', LaunchConfiguration('carto_config_dir')]),
             carto_basename_arg,
             log_settings,
             gazebo,

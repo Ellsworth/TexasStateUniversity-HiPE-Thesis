@@ -48,3 +48,25 @@ The world control service is setup, along with a basic ZeroMQ bridge for the RL 
 "{world_control: {multi_step: 10, pause: true}}"```
 
 We need to implement the state machine for Observe/Reward -> Act -> Run GZ for N ticks -> Repeat
+
+# February 4
+
+In order to reset the environment, we need to both restart cartographer and reset the position of the robot.
+
+```python
+import subprocess
+import os
+import signal
+
+def restart_cartographer():
+    # Find the process ID of the cartographer node
+    # We use 'pgrep' to find the PID based on the executable name
+    try:
+        pid = subprocess.check_output(["pgrep", "-f", "cartographer_node"]).decode().strip()
+        if pid:
+            print(f"Restarting Cartographer (PID: {pid})...")
+            # Send SIGTERM (or SIGKILL if it's being stubborn)
+            os.kill(int(pid.split('\n')[0]), signal.SIGTERM)
+    except subprocess.CalledProcessError:
+        print("Cartographer node not found. Is it running?")
+```
