@@ -31,6 +31,12 @@
            gz_type_name="gz.msgs.Twist"
            direction="ROS_TO_GZ"/>
 
+    <topic ros_topic_name="/marble_hd2/pose"
+           gz_topic_name="/model/marble_hd2/pose"
+           ros_type_name="geometry_msgs/msg/PoseArray"
+           gz_type_name="gz.msgs.Pose_V"
+           direction="GZ_TO_ROS"/>
+
     <service service_name="/world/shapes/control"
              ros_type_name="ros_gz_interfaces/srv/ControlWorld"
              gz_req_type_name="gz.msgs.WorldControl"
