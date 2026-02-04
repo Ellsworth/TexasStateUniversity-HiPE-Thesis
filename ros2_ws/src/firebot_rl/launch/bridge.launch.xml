@@ -42,5 +42,10 @@
              gz_req_type_name="gz.msgs.WorldControl"
              gz_rep_type_name="gz.msgs.Boolean" />
 
+    <service service_name="/world/shapes/set_pose"
+             ros_type_name="ros_gz_interfaces/srv/SetEntityPose"
+             gz_req_type_name="gz.msgs.Pose"
+             gz_rep_type_name="gz.msgs.Boolean" />
+
   </ros_gz_bridge>
 </launch>

@@ -10,10 +10,14 @@ import msgpack_numpy as m
 import numpy as np
 import threading
 import time
+import subprocess
+import os
+import signal
 
 from ros_gz_interfaces.srv import ControlWorld
 from ros_gz_interfaces.msg import WorldControl
 from ros_gz_interfaces.msg import WorldReset
+from ros_gz_interfaces.srv import SetEntityPose
 
 # Patch msgpack (standard boilerplate)
 m.patch()
@@ -41,6 +45,7 @@ class MinimalBridge(Node):
 
         # 1.1 Gazebo Control Client
         self.world_control_client = self.create_client(ControlWorld, '/world/shapes/control')
+        self.set_entity_pose_client = self.create_client(SetEntityPose, '/world/shapes/set_pose')
         # We don't block waiting for service here to avoid stalling startup if sim isn't ready
 
         # 2. ZMQ Setup - Renamed to avoid ROS 2 conflict
@@ -138,6 +143,20 @@ class MinimalBridge(Node):
              
         return True
 
+    def restart_cartographer(self):
+        # Find the process ID of the cartographer node
+        # We use 'pgrep' to find the PID based on the executable name
+        try:
+            pid = subprocess.check_output(["pgrep", "-f", "cartographer_node"]).decode().strip()
+            if pid:
+                # Send SIGTERM (or SIGKILL if it's being stubborn)
+                # Handle multiple PIDs if any
+                for p in pid.splitlines():
+                     self.get_logger().info(f"Restarting Cartographer (PID: {p})...")
+                     os.kill(int(p), signal.SIGTERM)
+        except subprocess.CalledProcessError:
+            self.get_logger().warn("Cartographer node not found. Is it running?")
+
     def zmq_loop(self):
         while rclpy.ok():
             try:
@@ -148,12 +167,38 @@ class MinimalBridge(Node):
 
                 # 0. Handle Simulation Control
                 if "reset" in data and data["reset"]:
-                    # Just calling step(0) with pause=True effectively pauses if needed, 
-                    # but real reset might need more logic or a different service call.
-                    # For now, let's assume 'reset' means 'pause and reset'
-                    # The user asked for "control", usually 'reset' implies a different service or full restart.
-                    # If the user just wants to step, we check "step".
-                    pass # Placeholder if we need explicit reset service later
+                    if self.set_entity_pose_client.service_is_ready():
+                        req = SetEntityPose.Request()
+                        req.entity.name = 'marble_hd2'
+                        req.pose.position.x = 5.0
+                        req.pose.position.y = 30.0
+                        req.pose.position.z = 8.0
+                        req.pose.orientation.x = 0.0
+                        req.pose.orientation.y = 0.0
+                        req.pose.orientation.z = 0.0
+                        req.pose.orientation.w = 1.0
+
+                        future = self.set_entity_pose_client.call_async(req)
+                        # Since we are in a separate thread from rclpy.spin, we can wait for the future
+                        # However, call_async + wait_for_future is safer or just use atomic call if spin is handling it?
+                        # Since rclpy.spin(node) is running in main thread, and we are in zmq_thread:
+                        # We cannot use self.set_entity_pose_client.call(req) because that might deadlock if valid spin is needed?
+                        # Actually, call() inside a callbacks usually deadlocks, but here we are in a separate thread.
+                        # But safely, we can just use call() if the executor handles it.
+                        # Given the pattern in step_simulation uses call(), we will stick to that.
+                        
+                        try:
+                           res = self.set_entity_pose_client.call(req)
+                           if res.success:
+                               self.get_logger().info("Successfully reset robot pose via /world/shapes/set_pose")
+                               # Restart Cartographer
+                               self.restart_cartographer()
+                           else:
+                               self.get_logger().error("Failed to reset robot pose")
+                        except Exception as e:
+                            self.get_logger().error(f"Service call failed: {e}")
+                    else:
+                        self.get_logger().warn("SetEntityPose service not ready")
 
                 if "step" in data:
                     steps = int(data["step"])

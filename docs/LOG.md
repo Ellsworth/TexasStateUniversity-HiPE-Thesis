@@ -70,3 +70,7 @@ def restart_cartographer():
     except subprocess.CalledProcessError:
         print("Cartographer node not found. Is it running?")
 ```
+
+```bash
+ros2 service call /world/shapes/set_pose ros_gz_interfaces/srv/SetEntityPose "{entity: {name: 'marble_hd2'}, pose: {position: {x: 5.0, y: 30.0, z: 8.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}"
+```
