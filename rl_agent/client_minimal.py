@@ -33,10 +33,11 @@ if __name__ == "__main__":
     env_client = RLZmqClient()
 
     cmd_vel = np.array([0.0, 0.0]) 
-    result = env_client.step(cmd_vel, reset=True)
+    result = env_client.step(cmd_vel, reset=False)
 
     print(f"Result: {result.keys()}")
 
+    print(result)
     print(result["observation"])
     
     #print(f"Received Obs: {result['observation']} | Reward: {result['reward']}")

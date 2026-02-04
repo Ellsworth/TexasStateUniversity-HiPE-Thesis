@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16MultiArray
+from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
 
 import zmq
@@ -38,9 +39,15 @@ class MinimalBridge(Node):
         self.grid_height = 65
         self.grid_width = 65
 
+        # Wall distance tracking
+        self.wall_distance = -1.0
+        self.wall_angle = 0.0
+        self.scan_lock = threading.Lock()
+
         # 1. ROS Setup
         self.cmd_vel_pub = self.create_publisher(Twist, '/marble_hd2/cmd_vel', 10)
         self.create_subscription(Int16MultiArray, '/local_grid', self.grid_callback, 10)
+        self.create_subscription(LaserScan, '/marble_hd2/planar_laser/scan', self.scan_callback, 10)
         self.create_subscription(Clock, '/clock', self.clock_callback, 10)
 
         # 1.1 Gazebo Control Client
@@ -76,6 +83,34 @@ class MinimalBridge(Node):
             
         except ValueError as e:
             self.get_logger().error(f"Grid reshape failed: {e}. Check height/width dimensions.")
+
+    def scan_callback(self, msg):
+        """Process LaserScan to find closest obstacle"""
+        # Filter out invalid ranges (infs/nans) and find min
+        ranges = np.array(msg.ranges)
+        
+        # Create angles array
+        angles = np.linspace(msg.angle_min, msg.angle_max, len(ranges))
+        
+        # Filter out self-collision (rear view). 
+        # Assume angles > 2.5 rad or < -2.5 rad are the back of the robot
+        # This corresponds to roughly +/- 143 degrees
+        view_mask = np.abs(angles) < 2.5
+        
+        # Also filter invalid ranges (inf/nan)
+        valid_mask = np.isfinite(ranges) & view_mask
+        
+        valid_ranges = ranges[valid_mask]
+        valid_angles = angles[valid_mask]
+        
+        with self.scan_lock:
+            if valid_ranges.size > 0:
+                min_idx = np.argmin(valid_ranges)
+                self.wall_distance = float(valid_ranges[min_idx])
+                self.wall_angle = float(valid_angles[min_idx])
+            else:
+                self.wall_distance = -1.0
+                self.wall_angle = 0.0
 
     def clock_callback(self, msg):
         with self.sim_time_lock:
@@ -232,12 +267,18 @@ class MinimalBridge(Node):
                 # Retrieve the latest grid safely
                 with self.grid_lock:
                     obs = self.latest_grid if self.latest_grid is not None else []
+                
+                with self.scan_lock:
+                    current_wall_dist = self.wall_distance
+                    current_wall_angle = self.wall_angle
 
                 # Send back the actual observation
                 # msgpack_numpy handles the conversion of the NumPy array automatically
                 reply = {
                     "status": "ok", 
-                    "observation": obs
+                    "observation": obs,
+                    "wall_distance": current_wall_dist,
+                    "wall_angle": current_wall_angle
                 }
                 self.zmq_socket.send(msgpack.packb(reply))
 
