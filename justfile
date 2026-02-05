@@ -1,8 +1,9 @@
 default:
   podman compose down
-  gnome-terminal \
-    --tab -- bash -c "podman compose up"
-
+  #gnome-terminal \
+  #  --tab -- bash -c "podman compose up"
+  podman compose up
+  
 amd:
   nix-shell -p xorg.xhost --run "xhost +SI:localuser:$USER"
   podman compose down
