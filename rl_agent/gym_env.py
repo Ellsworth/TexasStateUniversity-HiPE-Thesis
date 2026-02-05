@@ -63,11 +63,13 @@ class FireBotEnv(gym.Env):
         super().reset(seed=seed)
         
         self.current_step = 0
+        # Initialize last_action for smoothness calculation
+        self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
 
         # Send reset command to ZMQ bridge
         payload = {
             "reset": True,
-            "command": "step" # Ensure we get a reply with observation
+            "command": "step"
         }
         
         try:
@@ -90,7 +92,7 @@ class FireBotEnv(gym.Env):
         
         payload = {
             "command": "step",
-            "step": 100, # default to 1 step
+            "step": 100, # 1 step = 0.01s
             "cmd_vel": action,
             "reset": False
         }
@@ -102,6 +104,8 @@ class FireBotEnv(gym.Env):
         observation = self._process_observation(data)
         reward = self._calculate_reward(data, action)
         
+        # Update state needed for next step
+        self.last_action = action.copy()
         self.current_step += 1
         
         terminated = False # Defining termination logic is hard without specific tasks
@@ -157,6 +161,7 @@ class FireBotEnv(gym.Env):
         - Inside range: Max reward
         - Outside range: Penalty scales with distance from target
         - Encourage forward movement: Reward proportional to linear_x velocity
+        - Penalize backward movement
         """
         wall_dist = float(data.get("wall_distance", -1.0))
         
@@ -186,15 +191,27 @@ class FireBotEnv(gym.Env):
         
         # Forward Velocity Reward:
         # action is [linear_x, angular_z]
-        # We want to encourage positive linear_x
+        # We want to encourage positive linear_x (forward motion)
         # Assuming action range [-1.0, 1.0] maps to velocity
         linear_x = action[0]
-        # Weighting for forward progress needed to break "twitching" local optima
-        FORWARD_WEIGHT = 0.5
+        angular_z = action[1]
         
+        # Weighting for forward progress 
+        FORWARD_WEIGHT = 1.0 
         vel_reward = linear_x * FORWARD_WEIGHT
         
-        total_reward = dist_reward + vel_reward
+        # Backwards Penalty
+        # If linear_x is negative, apply a penalty
+        backwards_penalty = 0.0
+        if linear_x < 0:
+            # Penalize the magnitude of backward movement
+            backwards_penalty = abs(linear_x) * 2.0 
+        
+        # Angular Velocity Penalty
+        # Discourage excessive spinning/twitching in place
+        angular_penalty = (angular_z**2) * 0.1
+        
+        total_reward = dist_reward + vel_reward - backwards_penalty - angular_penalty
             
         return float(total_reward)
 
