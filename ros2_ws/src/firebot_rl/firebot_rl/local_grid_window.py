@@ -221,7 +221,7 @@ class LocalGridWindowNode(Node):
         big = self.extract_window_no_rotate(data, gx, gy, side, side, pad_value)
 
         # Rotate by -yaw to align to robot heading
-        rot = self.rotate_about_center_nearest(big, -robot_yaw, pad_value)
+        rot = self.rotate_about_center_nearest(big, -robot_yaw - (math.pi / 2), pad_value)
 
         # Crop center
         cy = side // 2

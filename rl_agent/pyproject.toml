@@ -14,4 +14,5 @@ dependencies = [
     "tensorboard>=2.18.0",
     "rich>=13.9.4",
     "tqdm>=4.67.1",
+    "pygame>=2.6.1",
 ]

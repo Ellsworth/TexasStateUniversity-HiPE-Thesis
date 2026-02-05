@@ -170,6 +170,9 @@ class FireBotEnv(gym.Env):
         """Extract and format observation from ZMQ response."""
         # data["observation"] is the grid
         local_grid = data.get("observation", np.zeros((65,65), dtype=np.int16))
+        if not isinstance(local_grid, np.ndarray):
+             local_grid = np.array(local_grid, dtype=np.int16)
+        
         # Ensure it's the right shape/type just in case
         if local_grid.shape != (65, 65):
              local_grid = np.zeros((65,65), dtype=np.int16)
