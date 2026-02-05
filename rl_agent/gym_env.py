@@ -14,27 +14,52 @@ class FireBotEnv(gym.Env):
     """
     metadata = {"render_modes": [], "render_fps": 10}
 
-    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000):
+    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False):
         super().__init__()
         
         self.max_episode_steps = max_episode_steps
         self.current_step = 0
+        self.discrete_actions = discrete_actions
+        self.mock = mock
         
         # 1. Initialize ZMQ
-        self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect(f"tcp://{ip}:{port}")
+        if not self.mock:
+            self.context = zmq.Context()
+            self.socket = self.context.socket(zmq.REQ)
+            self.socket.connect(f"tcp://{ip}:{port}")
+        else:
+            print("Running in MOCK mode. No ZMQ connection.")
         
         # 2. Define Action Space
-        # cmd_vel: [linear_x, angular_z]
-        # We'll assume a range of [-1.0, 1.0] for now and scale if necessary in the bridge,
-        # but the bridge seems to take raw float values. 
-        # Let's define reasonable bounds for a robot.
-        self.action_space = spaces.Box(
-            low=np.array([-1.0, -1.0], dtype=np.float32), 
-            high=np.array([1.0, 1.0], dtype=np.float32), 
-            dtype=np.float32
-        )
+        if self.discrete_actions:
+            # Discrete Actions:
+            # 0: Stop
+            # 1: Forward
+            # 2: Backward
+            # 3: Left
+            # 4: Right
+            # 5: Forward Left
+            # 6: Forward Right
+            self.action_space = spaces.Discrete(7)
+            
+            # Action Map: [linear_x, angular_z]
+            self.action_map = {
+                0: [0.0, 0.0],
+                1: [1.0, 0.0],
+                2: [-1.0, 0.0],
+                3: [0.0, 1.0],   # Spin Left
+                4: [0.0, -1.0],  # Spin Right
+                5: [0.5, 0.5],   # Curve Left
+                6: [0.5, -0.5]   # Curve Right
+            }
+        else:
+            # Continuous Actions
+            # cmd_vel: [linear_x, angular_z]
+            self.action_space = spaces.Box(
+                low=np.array([-1.0, -1.0], dtype=np.float32), 
+                high=np.array([1.0, 1.0], dtype=np.float32), 
+                dtype=np.float32
+            )
 
         # 3. Define Observation Space
         # We have:
@@ -64,7 +89,13 @@ class FireBotEnv(gym.Env):
         
         self.current_step = 0
         # Initialize last_action for smoothness calculation
-        self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
+        if self.discrete_actions:
+             self.last_action = np.zeros(2, dtype=np.float32)
+        else:
+             self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
+        
+        if self.mock:
+            return self._get_mock_observation(), {}
 
         # Send reset command to ZMQ bridge
         payload = {
@@ -87,13 +118,23 @@ class FireBotEnv(gym.Env):
 
     def step(self, action):
         # Prepare payload
-        # Ensure action is standard python float/list for serialization if needed,
-        # but msgpack_numpy handles clean numpy arrays.
         
+        if self.discrete_actions:
+            # Map discrete action to velocity command
+            cmd_vel = self.action_map.get(int(action), [0.0, 0.0])
+        else:
+            cmd_vel = action
+            
+        if self.mock:
+            self.current_step += 1
+            terminated = False
+            truncated = self.current_step >= self.max_episode_steps
+            return self._get_mock_observation(), 0.0, terminated, truncated, {}
+
         payload = {
             "command": "step",
             "step": 100, # 1 step = 0.01s
-            "cmd_vel": action,
+            "cmd_vel": cmd_vel,
             "reset": False
         }
 
@@ -102,10 +143,13 @@ class FireBotEnv(gym.Env):
         data = msgpack.unpackb(message)
         
         observation = self._process_observation(data)
-        reward = self._calculate_reward(data, action)
+        reward = self._calculate_reward(data, cmd_vel) # Use cmd_vel (mapped action) for reward calc
         
         # Update state needed for next step
-        self.last_action = action.copy()
+        if not isinstance(cmd_vel, np.ndarray):
+            cmd_vel = np.array(cmd_vel, dtype=np.float32)
+
+        self.last_action = cmd_vel.copy()
         self.current_step += 1
         
         terminated = False # Defining termination logic is hard without specific tasks
@@ -113,6 +157,14 @@ class FireBotEnv(gym.Env):
         info = {}
 
         return observation, reward, terminated, truncated, info
+
+    def _get_mock_observation(self):
+        """Generate random observation for testing."""
+        return {
+            "local_grid": np.random.randint(0, 255, (1, 65, 65), dtype=np.uint8),
+            "wall_distance": np.array([np.random.uniform(0, 10)], dtype=np.float32),
+            "wall_angle": np.array([np.random.uniform(-np.pi, np.pi)], dtype=np.float32)
+        }
 
     def _process_observation(self, data):
         """Extract and format observation from ZMQ response."""
@@ -216,5 +268,6 @@ class FireBotEnv(gym.Env):
         return float(total_reward)
 
     def close(self):
-        self.socket.close()
-        self.context.term()
+        if not self.mock:
+            self.socket.close()
+            self.context.term()

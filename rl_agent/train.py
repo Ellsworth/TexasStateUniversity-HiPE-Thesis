@@ -1,36 +1,37 @@
-from stable_baselines3 import PPO
+from stable_baselines3 import DQN
 from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from gym_env import FireBotEnv
 import os
 
 def main():
     # 1. Create Environment
     # We set max_episode_steps to allow for truncation
-    env = FireBotEnv(max_episode_steps=1000)
     
-    # Optional: Check if environment follows Gym API
-    print("Checking environment compatibility...")
-    try:
-        check_env(env)
-        print("Environment check passed!")
-    except Exception as e:
-        print(f"Environment check warning: {e}")
-        # We continue even with warnings, as some custom spaces might limit strict checking
-
+    # Wrap in DummyVecEnv for VecFrameStack compatibility
+    env = DummyVecEnv([lambda: FireBotEnv(max_episode_steps=1000, discrete_actions=True)])
+    
+    # Stack 4 frames
+    env = VecFrameStack(env, n_stack=4)
+    
     # 2. Define Model
     # MultiInputPolicy is required for Dict observation spaces
-    model = PPO(
+    model = DQN(
         "MultiInputPolicy", 
         env, 
         verbose=1,
-        tensorboard_log="./ppo_firebot_tensorboard/",
-        learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
+        tensorboard_log="./dqn_firebot_tensorboard/",
+        learning_rate=1e-4,
+        buffer_size=100_000,
+        learning_starts=1000,
+        batch_size=32,
+        tau=1.0, 
+        target_update_interval=1000,
         gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.2,
+        train_freq=4,
+        gradient_steps=1,
+        exploration_fraction=0.1,
+        exploration_final_eps=0.05,
     )
 
     # 3. Train
@@ -46,13 +47,13 @@ def main():
         model.learn(total_timesteps=total_timesteps, progress_bar=True)
         
         # 4. Save Model
-        model_path = "ppo_firebot_final"
+        model_path = "dqn_firebot_final"
         model.save(model_path)
         print(f"Model saved to {model_path}")
         
     except KeyboardInterrupt:
         print("\nTraining interrupted by user. Saving model...")
-        model.save("ppo_firebot_interrupted")
+        model.save("dqn_firebot_interrupted")
         print("Model saved.")
         
     finally:
