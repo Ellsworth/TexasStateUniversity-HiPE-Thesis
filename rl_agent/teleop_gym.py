@@ -30,7 +30,7 @@ class FireBotTeleop:
         self.mock = mock
         
         # Initialize Environment
-        self.env = FireBotEnv(discrete_actions=not continuous, mock=mock)
+        self.env = FireBotEnv(discrete_actions=not continuous, mock=mock, agent_name="teleop")
         self.observation, _ = self.env.reset()
         
         # Pygame Setup
@@ -64,9 +64,9 @@ class FireBotTeleop:
             linear_x -= 1.0
             
         # Angular Movement
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        if keys[pygame.K_LEFT] or keys[pygame.K_d]:
             angular_z -= 1.0
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        if keys[pygame.K_RIGHT] or keys[pygame.K_a]:
             angular_z += 1.0
             
         if self.continuous:
@@ -115,6 +115,7 @@ class FireBotTeleop:
         # Transpose for Pygame (width, height) vs numpy (row, col)
         # Usually numpy image is (y, x), pygame surface is (x, y)
         rgb_array = np.transpose(rgb_array, (1, 0, 2))
+        rgb_array = np.flipud(rgb_array)
         
         # Blit array to surface
         pygame.surfarray.blit_array(surf, rgb_array)

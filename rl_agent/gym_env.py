@@ -14,13 +14,14 @@ class FireBotEnv(gym.Env):
     """
     metadata = {"render_modes": [], "render_fps": 10}
 
-    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False):
+    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False, agent_name="unknown"):
         super().__init__()
         
         self.max_episode_steps = max_episode_steps
         self.current_step = 0
         self.discrete_actions = discrete_actions
         self.mock = mock
+        self.agent_name = agent_name
         
         # 1. Initialize ZMQ
         if not self.mock:
@@ -99,6 +100,7 @@ class FireBotEnv(gym.Env):
 
         # Send reset command to ZMQ bridge
         payload = {
+            "agent_name": self.agent_name,
             "reset": True,
             "command": "step"
         }
@@ -132,6 +134,7 @@ class FireBotEnv(gym.Env):
             return self._get_mock_observation(), 0.0, terminated, truncated, {}
 
         payload = {
+            "agent_name": self.agent_name,
             "command": "step",
             "step": 100, # 1 step = 0.01s
             "cmd_vel": cmd_vel,

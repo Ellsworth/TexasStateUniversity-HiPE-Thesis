@@ -65,6 +65,9 @@ class MinimalBridge(Node):
         self.zmq_thread = threading.Thread(target=self.zmq_loop, daemon=True)
         self.zmq_thread.start()
 
+        # Misc
+        self.agent_name = ""
+
     def grid_callback(self, msg):
         """Convert ROS Int16MultiArray to a NumPy grid for RL"""
         try:
@@ -126,7 +129,7 @@ class MinimalBridge(Node):
         req.world_control.multi_step = steps
         req.world_control.pause = True # Ensure we pause after stepping
         
-        self.get_logger().info(f"Stepping simulation by {steps} steps")
+        self.get_logger().debug(f"Stepping simulation by {steps} steps")
 
         # Capture start time
         with self.sim_time_lock:
@@ -194,11 +197,20 @@ class MinimalBridge(Node):
 
     def zmq_loop(self):
         while rclpy.ok():
+            received = False
             try:
                 raw_msg = self.zmq_socket.recv()
+                received = True
                 data = msgpack.unpackb(raw_msg)
                 
-                self.get_logger().info(f"Got message: {data}")
+                self.get_logger().debug(f"Got message: {data}")
+            
+                agent_name = data.get("agent_name")
+                #self.get_logger().info(f"Agent name: {agent_name}")
+
+                if self.agent_name != agent_name:
+                    self.get_logger().info(f"New connection from agent '{agent_name}'")
+                    self.agent_name = agent_name
 
                 # 0. Handle Simulation Control
                 if "reset" in data and data["reset"]:
@@ -262,7 +274,7 @@ class MinimalBridge(Node):
                     # 4. Publish to the ROS 2 topic
                     self.cmd_vel_pub.publish(twist)
                     
-                    self.get_logger().info(f"Published to /cmd_vel: Linear={twist.linear.x}, Angular={twist.angular.z}")
+                    self.get_logger().debug(f"Published to /cmd_vel: Linear={twist.linear.x}, Angular={twist.angular.z}")
 
                 # Retrieve the latest grid safely
                 with self.grid_lock:
@@ -284,6 +296,12 @@ class MinimalBridge(Node):
 
             except Exception as e:
                 self.get_logger().error(f"ZMQ Error: {e}")
+                if received:
+                    try:
+                        # Attempt to send error reply to reset REP state
+                        self.zmq_socket.send(msgpack.packb({"status": "error", "msg": str(e)}))
+                    except Exception as send_e:
+                         self.get_logger().error(f"Critical ZMQ State Error: {send_e}")
 
 def main(args=None):
     rclpy.init(args=args)
