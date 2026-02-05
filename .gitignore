@@ -4,6 +4,8 @@ build/
 log/
 install/
 rl_agent/*.png
+rl_agent/*.zip
+rl_agent/*_tensorboard/
 
 # Python cache folder
 __pycache__/
