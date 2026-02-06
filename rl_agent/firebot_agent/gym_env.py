@@ -100,7 +100,6 @@ class FireBotEnv(gym.Env):
 
         # Send reset command to ZMQ bridge
         payload = {
-            "agent_name": self.agent_name,
             "reset": True,
             "command": "step"
         }
@@ -134,7 +133,6 @@ class FireBotEnv(gym.Env):
             return self._get_mock_observation(), 0.0, terminated, truncated, {}
 
         payload = {
-            "agent_name": self.agent_name,
             "command": "step",
             "step": 100, # 1 step = 0.01s
             "cmd_vel": cmd_vel,
