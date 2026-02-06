@@ -9,6 +9,17 @@ from .offline_dataset_recorder import OfflineDataCollector
 # Patch msgpack to automatically handle numpy arrays
 m.patch()
 
+# Discrete Action Map: [linear_x, angular_z]
+DISCRETE_ACTION_MAP = {
+    0: [0.0, 0.0],
+    1: [1.0, 0.0],
+    2: [-1.0, 0.0],
+    3: [0.0, 1.0],   # Spin Left
+    4: [0.0, -1.0],  # Spin Right
+    5: [0.5, 0.5],   # Curve Left
+    6: [0.5, -0.5]   # Curve Right
+}
+
 class FireBotEnv(gym.Env):
     """
     Custom Gymnasium Environment for the FireBot robot via ZMQ.
@@ -49,15 +60,8 @@ class FireBotEnv(gym.Env):
             self.action_space = spaces.Discrete(7)
             
             # Action Map: [linear_x, angular_z]
-            self.action_map = {
-                0: [0.0, 0.0],
-                1: [1.0, 0.0],
-                2: [-1.0, 0.0],
-                3: [0.0, 1.0],   # Spin Left
-                4: [0.0, -1.0],  # Spin Right
-                5: [0.5, 0.5],   # Curve Left
-                6: [0.5, -0.5]   # Curve Right
-            }
+            # Action Map: [linear_x, angular_z]
+            self.action_map = DISCRETE_ACTION_MAP
         else:
             # Continuous Actions
             # cmd_vel: [linear_x, angular_z]

@@ -9,6 +9,9 @@ from firebot_agent.gym_env import FireBotEnv
 # Initialize Pygame
 pygame.init()
 
+print(f"Video Driver: {pygame.display.get_driver()}")
+print(f"Display Info: {pygame.display.Info()}")
+
 # Constants
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 900
