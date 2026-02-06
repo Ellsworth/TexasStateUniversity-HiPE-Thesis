@@ -65,9 +65,6 @@ class MinimalBridge(Node):
         self.zmq_thread = threading.Thread(target=self.zmq_loop, daemon=True)
         self.zmq_thread.start()
 
-        # Misc
-        self.agent_name = ""
-
     def grid_callback(self, msg):
         """Convert ROS Int16MultiArray to a NumPy grid for RL"""
         try:
@@ -204,13 +201,6 @@ class MinimalBridge(Node):
                 data = msgpack.unpackb(raw_msg)
                 
                 self.get_logger().debug(f"Got message: {data}")
-            
-                agent_name = data.get("agent_name")
-                #self.get_logger().info(f"Agent name: {agent_name}")
-
-                if self.agent_name != agent_name:
-                    self.get_logger().info(f"New connection from agent '{agent_name}'")
-                    self.agent_name = agent_name
 
                 # 0. Handle Simulation Control
                 if "reset" in data and data["reset"]:
