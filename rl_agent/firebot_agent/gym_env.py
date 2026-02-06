@@ -4,6 +4,7 @@ import zmq
 import numpy as np
 import msgpack
 import msgpack_numpy as m
+from .offline_dataset_recorder import OfflineDataCollector
 
 # Patch msgpack to automatically handle numpy arrays
 m.patch()
@@ -14,7 +15,7 @@ class FireBotEnv(gym.Env):
     """
     metadata = {"render_modes": [], "render_fps": 10}
 
-    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False, agent_name="unknown"):
+    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False, agent_name="unknown", record_data=False):
         super().__init__()
         
         self.max_episode_steps = max_episode_steps
@@ -22,6 +23,10 @@ class FireBotEnv(gym.Env):
         self.discrete_actions = discrete_actions
         self.mock = mock
         self.agent_name = agent_name
+        self.record_data = record_data
+        
+        if self.record_data:
+            self.collector = OfflineDataCollector()
         
         # 1. Initialize ZMQ
         if not self.mock:
@@ -130,32 +135,38 @@ class FireBotEnv(gym.Env):
             self.current_step += 1
             terminated = False
             truncated = self.current_step >= self.max_episode_steps
-            return self._get_mock_observation(), 0.0, terminated, truncated, {}
+            observation = self._get_mock_observation()
+            reward = 0.0
+            info = {}
+        else:
+            payload = {
+                "command": "step",
+                "step": 100, # 1 step = 0.01s
+                "cmd_vel": cmd_vel,
+                "reset": False
+            }
 
-        payload = {
-            "command": "step",
-            "step": 100, # 1 step = 0.01s
-            "cmd_vel": cmd_vel,
-            "reset": False
-        }
+            self.socket.send(msgpack.packb(payload))
+            message = self.socket.recv()
+            data = msgpack.unpackb(message)
+            
+            observation = self._process_observation(data)
+            reward = self._calculate_reward(data, cmd_vel) # Use cmd_vel (mapped action) for reward calc
+            
+            # Update state needed for next step
+            if not isinstance(cmd_vel, np.ndarray):
+                cmd_vel = np.array(cmd_vel, dtype=np.float32)
 
-        self.socket.send(msgpack.packb(payload))
-        message = self.socket.recv()
-        data = msgpack.unpackb(message)
-        
-        observation = self._process_observation(data)
-        reward = self._calculate_reward(data, cmd_vel) # Use cmd_vel (mapped action) for reward calc
-        
-        # Update state needed for next step
-        if not isinstance(cmd_vel, np.ndarray):
-            cmd_vel = np.array(cmd_vel, dtype=np.float32)
+            self.last_action = cmd_vel.copy()
+            self.current_step += 1
+            
+            terminated = False # Defining termination logic is hard without specific tasks
+            truncated = self.current_step >= self.max_episode_steps
+            info = {}
 
-        self.last_action = cmd_vel.copy()
-        self.current_step += 1
-        
-        terminated = False # Defining termination logic is hard without specific tasks
-        truncated = self.current_step >= self.max_episode_steps
-        info = {}
+        # Record step if enabled
+        if self.record_data:
+             self.collector.add_step(observation, action, reward, terminated or truncated)
 
         return observation, reward, terminated, truncated, info
 
@@ -272,6 +283,9 @@ class FireBotEnv(gym.Env):
         return float(total_reward)
 
     def close(self):
+        if self.record_data:
+            self.collector.save()
+            
         if not self.mock:
             self.socket.close()
             self.context.term()

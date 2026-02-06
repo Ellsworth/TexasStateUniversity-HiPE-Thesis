@@ -30,7 +30,7 @@ class FireBotTeleop:
         self.mock = mock
         
         # Initialize Environment
-        self.env = FireBotEnv(discrete_actions=not continuous, mock=mock, agent_name="teleop")
+        self.env = FireBotEnv(discrete_actions=not continuous, mock=mock, agent_name="teleop", record_data=True)
         self.observation, _ = self.env.reset()
         
         # Pygame Setup

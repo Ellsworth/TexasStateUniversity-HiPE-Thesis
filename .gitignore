@@ -6,6 +6,7 @@ install/
 rl_agent/*.png
 rl_agent/*.zip
 rl_agent/*_tensorboard/
+*.npz
 
 # Python cache folder
 __pycache__/
