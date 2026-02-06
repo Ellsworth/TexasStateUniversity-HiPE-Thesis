@@ -4,7 +4,7 @@ import numpy as np
 import argparse
 import sys
 import time
-from gym_env import FireBotEnv
+from firebot_agent.gym_env import FireBotEnv
 
 # Initialize Pygame
 pygame.init()
