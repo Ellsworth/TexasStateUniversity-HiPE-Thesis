@@ -44,6 +44,7 @@ class FireBotTeleop:
         
         # State
         self.running = True
+        self.user_quit = False  # Track if user explicitly quit
         self.action = np.zeros(2, dtype=np.float32) if continuous else 0
         self.total_reward = 0.0
         self.step_count = 0
@@ -154,11 +155,17 @@ class FireBotTeleop:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+                    self.user_quit = True
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
                         self.running = False
+                        self.user_quit = True
                     if event.key == pygame.K_r:
                         print("Resetting environment...")
+                        # Record terminal step for current episode before reset
+                        if self.env.record_data and hasattr(self, 'observation'):
+                            print("Recording terminal step before reset...")
+                            self.env.collector.add_step(self.observation, self.action, 0.0, True)
                         self.observation, _ = self.env.reset()
                         self.total_reward = 0.0
                         self.step_count = 0
@@ -196,6 +203,13 @@ class FireBotTeleop:
             
             # Clock tick
             self.clock.tick(20) # 20 Hz teleop
+            
+        # If user quit explicitly (Q/ESC), record a terminal step
+        if self.user_quit and self.env.record_data:
+            print("Recording terminal step before exit...")
+            # Record a final terminal step with the last observation and action
+            # We mark it as terminated=True to indicate the episode ended
+            self.env.collector.add_step(obs, self.action, 0.0, True)
             
         self.env.close()
         pygame.quit()
