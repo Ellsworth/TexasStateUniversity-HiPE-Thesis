@@ -25,15 +25,18 @@ class GridObservationWrapper(gym.ObservationWrapper):
         return obs["local_grid"].squeeze(0)
 
 def main():
-    parser = argparse.ArgumentParser(description="DQN Training (Offline & Online)")
+    parser = argparse.ArgumentParser(description="DiscreteCQL Training (Offline Pretraining + Online Fine-tuning)")
     parser.add_argument("--dataset", type=str, default="offline_dataset.npz", help="Path to the offline dataset (npz)")
-    parser.add_argument("--n-steps", type=int, default=1000000, help="Number of training steps")
-    parser.add_argument("--save-path", type=str, default="d3rlpy_logs/dqn_model.d3", help="Path to save the trained model")
+    parser.add_argument("--n-steps", type=int, default=1000000, help="Number of training steps (used as default for both stages)")
+    parser.add_argument("--pretrain-steps", type=int, default=None, help="Number of offline pretraining steps (overrides --n-steps for pretraining)")
+    parser.add_argument("--finetune-steps", type=int, default=None, help="Number of online fine-tuning steps (overrides --n-steps for fine-tuning)")
+    parser.add_argument("--save-path", type=str, default="d3rlpy_logs/cql_model.d3", help="Path to save the trained model")
+    parser.add_argument("--pretrain-checkpoint", type=str, default="d3rlpy_logs/cql_pretrained.d3", help="Path to save/load pretrained model")
     parser.add_argument("--n-frames", type=int, default=4, help="Number of frames to stack")
-    parser.add_argument("--load-checkpoint", type=str, default=None, help="Path to checkpoint to load for fine-tuning")
+    parser.add_argument("--load-checkpoint", type=str, default=None, help="Path to checkpoint to load for resuming training")
     
     # Online arguments
-    parser.add_argument("--online", action="store_true", help="Enable online training mode")
+    parser.add_argument("--online", action="store_true", help="Enable online fine-tuning after offline pretraining")
     parser.add_argument("--buffer-size", type=int, default=200000, help="Replay buffer size for online training")
     parser.add_argument("--mock", action="store_true", help="Use mock environment (no ZMQ)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="ZMQ server host")
@@ -41,104 +44,71 @@ def main():
     
     args = parser.parse_args()
 
-    # Initialize DQN
-    dqn = d3rlpy.algos.DQNConfig(
+    # Determine training steps for each stage
+    pretrain_steps = args.pretrain_steps if args.pretrain_steps is not None else args.n_steps
+    finetune_steps = args.finetune_steps if args.finetune_steps is not None else args.n_steps
+
+    # Initialize DiscreteCQL (better for offline RL with discrete actions)
+    cql = d3rlpy.algos.DiscreteCQLConfig(
         learning_rate=3e-4,
         batch_size=64,
         target_update_interval=100,
-    ).create(device=False)
+        alpha=1.0  # CQL regularization weight
+    ).create(device=True)
 
-    if args.online:
-        print("Starting ONLINE training...")
-        # Create environment
-        env = FireBotEnv(
-            ip=args.host,
-            port=args.port,
-            discrete_actions=True, # DQN requires discrete actions
-            mock=args.mock,
-            agent_name="DQN_Agent",
-            record_data=False 
-        )
-        env = GridObservationWrapper(env)
-        
-        if args.n_frames > 1:
-            print(f"Stacking {args.n_frames} frames...")
-            # Gymnasium v1.0 uses stack_size instead of num_stack
-            env = FrameStackObservation(env, stack_size=args.n_frames)
-        
-        # Load weights if checkpoint is provided
-        if args.load_checkpoint:
-            print(f"Loading checkpoint from {args.load_checkpoint}...")
-            # We need to build the model first to load weights
-            # Shape depends on frame stacking: (N_FRAMES, 65, 65) or (65, 65)
-            # Action size is 7 (from FireBotEnv)
-            # FrameStackObservation produces (Stack, H, W)
-            # GridObservationWrapper produces (H, W)
-            
-            if args.n_frames > 1:
-                obs_shape = (args.n_frames, 65, 65)
+    # ============ STAGE 1: OFFLINE PRETRAINING ============
+    if args.load_checkpoint:
+        print(f"Loading checkpoint from {args.load_checkpoint}...")
+        # For resuming, we need to know the shape. Let's load the dataset to infer it.
+        if os.path.exists(args.dataset):
+            data = np.load(args.dataset)
+            if 'obs_local_grid' in data:
+                observations = data['obs_local_grid']
+            elif 'observations' in data:
+                observations = data['observations']
             else:
-                obs_shape = (1, 65, 65) # d3rlpy expects channels
-                # NOTE: If we are not using frame stack, GridObservationWrapper returns (65,65)
-                # d3rlpy normally handles (C, H, W) from pixel inputs.
-                # If we passed (65, 65) to fit_online, d3rlpy infers.
-                # Here we are building manually. Let's rely on what we know the online env produces.
-                # Actually, let's just use the env.observation_space.shape if possible, 
-                # but we need to match what d3rlpy expects (channel first).
-                obs_shape = (1, 65, 65) # Default single frame
-                
-            # It's safer to let d3rlpy detect from a sample or use specific known shape.
-            # Offline training resulted in (4, 65, 65) for 4 frames.
-            # So for n_frames=4, we use (4, 65, 65).
+                raise ValueError("Could not find observations in dataset. Keys: " + str(data.keys()))
             
-            # Action size for FireBotEnv is 7
-            dqn.build_with_env(env)
-            dqn.load_model(args.load_checkpoint)
-            print("Checkpoint loaded successfully.")
-
-        # Create Replay Buffer
-        buffer = d3rlpy.dataset.create_fifo_replay_buffer(limit=args.buffer_size, env=env)
-        
-        # Start Online Training
-        try:
-             explorer = d3rlpy.algos.LinearDecayEpsilonGreedy(
-                start_epsilon=1.0,
-                end_epsilon=0.1,
-                duration=int(args.n_steps * 0.5) 
+            # Build model structure before loading
+            obs_shape = observations[0].shape
+            if args.n_frames > 1:
+                # With frame stacking, shape will be (n_frames, H, W)
+                obs_shape = (args.n_frames, obs_shape[-2], obs_shape[-1])
+            
+            # Create a dummy environment to build the model
+            # We'll use the first observation to infer shapes
+            from d3rlpy.dataset import MDPDataset
+            actions = convert_continuous_to_discrete(data['actions'])
+            dataset = MDPDataset(
+                observations=observations[:1],
+                actions=actions[:1],
+                rewards=data['rewards'][:1],
+                terminals=data['terminals'][:1]
             )
-        except AttributeError:
-             explorer = None
-
-        fit_args = {
-            "env": env,
-            "buffer": buffer,
-            "n_steps": args.n_steps,
-            "experiment_name": "DQN_Online",
-        }
-        if explorer:
-            fit_args["explorer"] = explorer
-            
-        dqn.fit_online(**fit_args)
-        
-        env.close()
-        
+            cql.build_with_dataset(dataset)
+            cql.load_model(args.load_checkpoint)
+            print("Checkpoint loaded successfully.")
+        else:
+            raise ValueError(f"Cannot load checkpoint without dataset at {args.dataset}")
     else:
-        print("Starting OFFLINE training...")
+        # Perform offline pretraining
+        print("=" * 60)
+        print("STAGE 1: OFFLINE PRETRAINING WITH DISCRETECQL")
+        print("=" * 60)
+        
         if not os.path.exists(args.dataset):
             print(f"Error: Dataset not found at {args.dataset}")
             return
 
         print(f"Loading dataset from {args.dataset}...")
         data = np.load(args.dataset)
-        
+
         if 'obs_local_grid' in data:
             observations = data['obs_local_grid']
         elif 'observations' in data:
             observations = data['observations']
         else:
             raise ValueError("Could not find observations in dataset. Keys: " + str(data.keys()))
-
-
 
         print("Observations shape:", observations.shape)
         
@@ -157,15 +127,72 @@ def main():
             transition_picker=transition_picker
         )
 
-        dqn.fit(
+        print(f"Training DiscreteCQL for {pretrain_steps} steps...")
+        cql.fit(
             dataset,
-            n_steps=args.n_steps,
-            experiment_name="DQN_Offline",
+            n_steps=pretrain_steps,
+            experiment_name="CQL_Offline_Pretrain",
         )
+        
+        # Save pretrained model
+        cql.save_model(args.pretrain_checkpoint)
+        print(f"Pretrained model saved to {args.pretrain_checkpoint}")
 
-    # Save the model
-    dqn.save_model(args.save_path)
-    print(f"Model saved to {args.save_path}")
+    # ============ STAGE 2: ONLINE FINE-TUNING ============
+    if args.online:
+        print("\n" + "=" * 60)
+        print("STAGE 2: ONLINE FINE-TUNING")
+        print("=" * 60)
+        
+        # Create environment
+        env = FireBotEnv(
+            ip=args.host,
+            port=args.port,
+            discrete_actions=True,  # DiscreteCQL requires discrete actions
+            mock=args.mock,
+            agent_name="CQL_Agent",
+            record_data=False 
+        )
+        env = GridObservationWrapper(env)
+        
+        if args.n_frames > 1:
+            print(f"Stacking {args.n_frames} frames...")
+            env = FrameStackObservation(env, stack_size=args.n_frames)
+        
+        # Build with environment if not already built
+        if not hasattr(cql, '_impl') or cql._impl is None:
+            cql.build_with_env(env)
+
+        # Create Replay Buffer
+        buffer = d3rlpy.dataset.create_fifo_replay_buffer(limit=args.buffer_size, env=env)
+        
+        # Start Online Fine-tuning with decayed exploration
+        try:
+            explorer = d3rlpy.algos.LinearDecayEpsilonGreedy(
+                start_epsilon=0.3,  # Start with lower epsilon since we're fine-tuning
+                end_epsilon=0.05,
+                duration=int(finetune_steps * 0.5) 
+            )
+        except AttributeError:
+            explorer = None
+
+        fit_args = {
+            "env": env,
+            "buffer": buffer,
+            "n_steps": finetune_steps,
+            "experiment_name": "CQL_Online_Finetune",
+        }
+        if explorer:
+            fit_args["explorer"] = explorer
+        
+        print(f"Fine-tuning for {finetune_steps} steps...")
+        cql.fit_online(**fit_args)
+        
+        env.close()
+
+    # Save the final model
+    cql.save_model(args.save_path)
+    print(f"\nFinal model saved to {args.save_path}")
 
 if __name__ == "__main__":
     main()
