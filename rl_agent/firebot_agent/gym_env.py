@@ -145,7 +145,7 @@ class FireBotEnv(gym.Env):
         else:
             payload = {
                 "command": "step",
-                "step": 100, # 1 step = 0.01s
+                "step": 100, # 1 step = 0.001s
                 "cmd_vel": cmd_vel,
                 "reset": False
             }
@@ -229,9 +229,10 @@ class FireBotEnv(gym.Env):
         """
         Reward function:
         - Target range: 2.0m to 3.0m
-        - Inside range: Max reward
+        - Inside range: Distance reward component
         - Outside range: Penalty scales with distance from target
-        - Encourage forward movement: Reward proportional to linear_x velocity
+        - STRONGLY encourage forward movement: Give most points for driving straight
+        - Penalize staying still (zero velocity)
         - Penalize backward movement
         """
         wall_dist = float(data.get("wall_distance", -1.0))
@@ -257,9 +258,20 @@ class FireBotEnv(gym.Env):
             error = 0.0
             
         # Distance Reward formulation:
-        # Max reward = 1.0 (inside target)
-        dist_reward = 1.0 - error
+        # Reduced weight - being in range is good but not the primary goal
+        dist_reward = (1.0 - error) * 0.3
         
+        # Additional penalty for being too close to the wall
+        # This penalty increases quadratically as the robot gets closer
+        proximity_penalty = 0.0
+        if current_dist < TARGET_MIN:
+            # Penalty scales with how close we are to the wall
+            # At 1.0m: penalty = 1.0 * 2.0 = 2.0
+            # At 0.5m: penalty = 2.25 * 2.0 = 4.5
+            # At 0.1m: penalty = 3.61 * 2.0 = 7.22
+            distance_ratio = (TARGET_MIN - current_dist) / TARGET_MIN
+            proximity_penalty = (distance_ratio ** 2) * 2.0
+            
         # Forward Velocity Reward:
         # action is [linear_x, angular_z]
         # We want to encourage positive linear_x (forward motion)
@@ -267,22 +279,40 @@ class FireBotEnv(gym.Env):
         linear_x = action[0]
         angular_z = action[1]
         
-        # Weighting for forward progress 
-        FORWARD_WEIGHT = 1.0 
-        vel_reward = linear_x * FORWARD_WEIGHT
+        # MOST IMPORTANT: Reward forward progress heavily
+        # Maximum reward for driving straight at full speed
+        FORWARD_WEIGHT = 1.0  # Increased from 1.0 to make forward motion primary goal
+        vel_reward = max(0, linear_x) * FORWARD_WEIGHT  # Only reward positive velocity
+        
+        # Staying Still Penalty
+        # Penalize the agent for not moving (linear_x close to 0)
+        VELOCITY_THRESHOLD = 0.1  # Consider anything below this as "stopped"
+        staying_still_penalty = 0.0
+        if abs(linear_x) < VELOCITY_THRESHOLD:
+            # Strong penalty for staying still
+            staying_still_penalty = 1.0
         
         # Backwards Penalty
-        # If linear_x is negative, apply a penalty
+        # If linear_x is negative, apply a strong penalty
         backwards_penalty = 0.0
         if linear_x < 0:
-            # Penalize the magnitude of backward movement
+            # Strongly penalize backward movement
             backwards_penalty = abs(linear_x) * 2.0 
         
         # Angular Velocity Penalty
-        # Discourage excessive spinning/twitching in place
-        angular_penalty = (angular_z**2) * 0.1
+        # Discourage turning - want mostly straight driving
+        # Increased penalty to encourage straight driving
+        angular_penalty = (angular_z**2) * 0.5
         
-        total_reward = dist_reward + vel_reward - backwards_penalty - angular_penalty
+        # Bonus for driving straight (high linear, low angular)
+        straight_driving_bonus = 0.0
+        if linear_x > 0.5 and abs(angular_z) < 0.2:
+            # Give extra reward for driving straight at good speed
+            straight_driving_bonus = 1.0
+        
+        total_reward = (dist_reward + vel_reward + straight_driving_bonus 
+                       - backwards_penalty - angular_penalty - staying_still_penalty 
+                       - proximity_penalty)
             
         return float(total_reward)
 
