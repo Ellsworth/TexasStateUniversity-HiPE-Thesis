@@ -1,7 +1,6 @@
 default:
+  xhost +SI:localuser:$USER
   podman compose down
-  #gnome-terminal \
-  #  --tab -- bash -c "podman compose up"
   podman compose up
   
 amd:
