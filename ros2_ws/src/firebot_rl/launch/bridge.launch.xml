@@ -43,6 +43,12 @@
            gz_type_name="gz.msgs.LaserScan"
            direction="GZ_TO_ROS"/>
 
+    <topic ros_topic_name="/marble_hd2/bumper/contact"
+           gz_topic_name="/world/shapes/model/marble_hd2/link/base_link/sensor/bumper/contact"
+           ros_type_name="ros_gz_interfaces/msg/Contacts"
+           gz_type_name="gz.msgs.Contacts"
+           direction="GZ_TO_ROS"/>
+
     <service service_name="/world/shapes/control"
              ros_type_name="ros_gz_interfaces/srv/ControlWorld"
              gz_req_type_name="gz.msgs.WorldControl"

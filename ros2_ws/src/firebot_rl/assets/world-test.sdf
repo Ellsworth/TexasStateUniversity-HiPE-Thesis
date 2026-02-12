@@ -44,6 +44,12 @@ limitations under the License.
       <render_engine>ogre2</render_engine>
     </plugin>
 
+    <!-- Contact system for collision detection -->
+    <plugin
+      filename="gz-sim-contact-system"
+      name="gz::sim::systems::Contact">
+    </plugin>
+
 
     <gui fullscreen="0">
 

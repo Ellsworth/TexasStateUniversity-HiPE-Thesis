@@ -349,6 +349,17 @@
             </sensor>
             <gravity>1</gravity>
             <velocity_decay/>
+            <!-- Contact sensor for collision detection -->
+            <sensor name="bumper" type="contact">
+                <contact>
+                    <collision>base_link_collision</collision>
+                </contact>
+                <always_on>1</always_on>
+                <update_rate>15</update_rate>
+                <visualize>true</visualize>
+                <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact">
+                </plugin>
+            </sensor>
 
         </link>
         <!-- Left Track  -->
