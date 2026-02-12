@@ -7,6 +7,7 @@ from firebot_agent.utils import convert_continuous_to_discrete
 from firebot_agent.gym_env import FireBotEnv
 import gymnasium as gym
 from gymnasium.wrappers import FrameStackObservation
+from d3rlpy.logging import TensorboardAdapterFactory
 
 class GridObservationWrapper(gym.ObservationWrapper):
     def __init__(self, env):
@@ -132,6 +133,7 @@ def main():
             dataset,
             n_steps=pretrain_steps,
             experiment_name="CQL_Offline_Pretrain",
+            logger_adapter=TensorboardAdapterFactory(root_dir="logs"),
         )
         
         # Save pretrained model
@@ -181,6 +183,7 @@ def main():
             "buffer": buffer,
             "n_steps": finetune_steps,
             "experiment_name": "CQL_Online_Finetune",
+            "logger_adapter": TensorboardAdapterFactory(root_dir="logs"),
         }
         if explorer:
             fit_args["explorer"] = explorer
