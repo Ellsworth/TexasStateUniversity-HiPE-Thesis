@@ -33,3 +33,19 @@ services:
         source install/setup.bash &&
         ros2 launch firebot_rl run_gz.launch.py
       "
+  
+  teleop_gym:
+    image: astral/uv:debian
+    volumes:
+      - ./rl_agent:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./.cache/venv:/app/.venv
+      - ./.cache/uv:/root/.cache/uv
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - UV_LINK_MODE=copy
+      - UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python
+    network_mode: host
+    working_dir: /app
+    command: sh -c "uv sync --frozen && uv run teleop_gym.py"

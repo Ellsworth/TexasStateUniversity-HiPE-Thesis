@@ -1,12 +1,12 @@
 default:
   xhost +SI:localuser:$USER
   podman compose down
-  podman compose up
+  podman compose up gazebo
   
 amd:
   nix-shell -p xorg.xhost --run "xhost +SI:localuser:$USER"
   podman compose down
-  podman compose -f compose-amd.yml up
+  podman compose -f compose-amd.yml up gazebo
 
 shell:
   podman exec -it gazebo bash -c "source /workspace/ros2_ws/install/setup.bash; exec /bin/bash"
@@ -16,3 +16,7 @@ clean:
 
 stop:
   podman compose down
+
+teleop:
+  nix-shell -p xorg.xhost --run "xhost +SI:localuser:$USER"
+  podman compose -f compose-amd.yml up teleop_gym
