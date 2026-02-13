@@ -3,6 +3,7 @@ import d3rlpy
 import argparse
 import os
 
+import torch
 from firebot_agent.utils import convert_continuous_to_discrete
 from firebot_agent.gym_env import FireBotEnv
 import gymnasium as gym
@@ -44,6 +45,17 @@ def main():
     parser.add_argument("--port", type=int, default=5555, help="ZMQ server port")
     
     args = parser.parse_args()
+    
+    # Print GPU info
+    print("=" * 60)
+    if torch.cuda.is_available():
+        n_gpus = torch.cuda.device_count()
+        print(f"GPUs available: {n_gpus}")
+        for i in range(n_gpus):
+            print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
+    else:
+        print("No GPUs available. Using CPU.")
+    print("=" * 60)
 
     # Determine training steps for each stage
     pretrain_steps = args.pretrain_steps if args.pretrain_steps is not None else args.n_steps
@@ -55,7 +67,7 @@ def main():
         batch_size=64,
         target_update_interval=100,
         alpha=1.0  # CQL regularization weight
-    ).create(device=True)
+    ).create(device=torch.cuda.is_available())
 
     # ============ STAGE 1: OFFLINE PRETRAINING ============
     if args.load_checkpoint:

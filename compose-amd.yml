@@ -48,4 +48,22 @@ services:
       - UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python
     network_mode: host
     working_dir: /app
-    command: sh -c "uv sync --frozen && uv run teleop_gym.py"
+    command: sh -c "uv sync --extra rocm && uv run --extra rocm teleop_gym.py"
+
+  train:
+    image: astral/uv:debian
+    # Headless, so no display/X11 needed
+    volumes:
+      - ./rl_agent:/app
+      - ./.cache/uv:/root/.cache/uv
+      - ./.cache/venv:/app/.venv
+    environment:
+      - UV_LINK_MODE=copy
+      - UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python
+      - PYTHONUNBUFFERED=1
+    devices:
+      - /dev/dri/card1:/dev/dri/card0
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    network_mode: host
+    working_dir: /app
+    command: sh -c "uv sync && uv run train.py"

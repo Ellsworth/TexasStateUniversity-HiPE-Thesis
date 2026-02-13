@@ -20,3 +20,6 @@ stop:
 teleop:
   nix-shell -p xorg.xhost --run "xhost +SI:localuser:$USER"
   podman compose -f compose-amd.yml up teleop_gym
+
+train:
+  podman compose -f compose-amd.yml up train
