@@ -33,6 +33,3 @@ RL-based FireBot navigation in Gazebo.
 -   **`just shell`**: Jump into a shell within the running container.
 -   **`just stop`**: Stop all running containers.
 -   **`just clean`**: Remove build artifacts.
-
----
-*For AMD GPU support, see `compose-amd.yml` and the `amd-*` targets in the `justfile`.*
