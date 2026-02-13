@@ -268,6 +268,15 @@ def generate_launch_description():
         arguments=[]
     )
 
+    contact_monitor = Node(
+        package='firebot_rl',
+        executable='contact_monitor',
+        name='contact_monitor',
+        output='screen',
+        parameters=[],
+        arguments=[]
+    )
+
     return LaunchDescription(
         [
             world_arg,
@@ -295,5 +304,6 @@ def generate_launch_description():
             grid_window_plotter,
             grid_window_publisher,
             zmq_bridge,
+            contact_monitor,
         ]
     )

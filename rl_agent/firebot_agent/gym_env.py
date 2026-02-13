@@ -76,6 +76,8 @@ class FireBotEnv(gym.Env):
         # - local_grid: 65x65 int16
         # - wall_distance: float
         # - wall_angle: float
+        # - wall_contact: float (0.0 or 1.0) — hitting a wall/obstacle
+        # ground_contact (string) is passed via the info dict, not the obs space
         self.observation_space = spaces.Dict({
             "local_grid": spaces.Box(
                 low=0, high=255, 
@@ -89,6 +91,11 @@ class FireBotEnv(gym.Env):
             "wall_angle": spaces.Box(
                 low=np.array([-np.pi], dtype=np.float32),
                 high=np.array([np.pi], dtype=np.float32),
+                dtype=np.float32
+            ),
+            "wall_contact": spaces.Box(
+                low=np.array([0.0], dtype=np.float32),
+                high=np.array([1.0], dtype=np.float32),
                 dtype=np.float32
             )
         })
@@ -118,7 +125,7 @@ class FireBotEnv(gym.Env):
             message = self.socket.recv()
             data = msgpack.unpackb(message)
             
-            return self._process_observation(data), {}
+            return self._process_observation(data), {"ground_contact": data.get("ground_contact", "")}
             
         except zmq.ZMQError as e:
             print(f"ZMQ Error during reset: {e}")
@@ -166,7 +173,10 @@ class FireBotEnv(gym.Env):
             
             terminated = False # Defining termination logic is hard without specific tasks
             truncated = self.current_step >= self.max_episode_steps
-            info = {}
+            info = {
+                "ground_contact": data.get("ground_contact", ""),
+                "wall_contact": bool(data.get("wall_contact", False))
+            }
 
         # Record step if enabled
         if self.record_data:
@@ -179,7 +189,8 @@ class FireBotEnv(gym.Env):
         return {
             "local_grid": np.random.randint(0, 255, (1, 65, 65), dtype=np.uint8),
             "wall_distance": np.array([np.random.uniform(0, 10)], dtype=np.float32),
-            "wall_angle": np.array([np.random.uniform(-np.pi, np.pi)], dtype=np.float32)
+            "wall_angle": np.array([np.random.uniform(-np.pi, np.pi)], dtype=np.float32),
+            "wall_contact": np.array([0.0], dtype=np.float32)
         }
 
     def _process_observation(self, data):
@@ -218,11 +229,13 @@ class FireBotEnv(gym.Env):
 
         wall_dist = np.array([float(data.get("wall_distance", -1.0))], dtype=np.float32)
         wall_ang = np.array([float(data.get("wall_angle", 0.0))], dtype=np.float32)
+        wall_contact = np.array([1.0 if data.get("wall_contact", False) else 0.0], dtype=np.float32)
 
         return {
             "local_grid": local_grid,
             "wall_distance": wall_dist,
-            "wall_angle": wall_ang
+            "wall_angle": wall_ang,
+            "wall_contact": wall_contact
         }
 
     def _calculate_reward(self, data, action):
@@ -310,9 +323,14 @@ class FireBotEnv(gym.Env):
             # Give extra reward for driving straight at good speed
             straight_driving_bonus = 1.0
         
+        # Wall collision penalty
+        collision_penalty = 0.0
+        if data.get("wall_contact", False):
+            collision_penalty = 5.0  # Strong penalty for scraping walls
+
         total_reward = (dist_reward + vel_reward + straight_driving_bonus 
                        - backwards_penalty - angular_penalty - staying_still_penalty 
-                       - proximity_penalty)
+                       - proximity_penalty - collision_penalty)
             
         return float(total_reward)
 

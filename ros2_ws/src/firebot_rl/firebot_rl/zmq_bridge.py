@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Int16MultiArray
+from std_msgs.msg import Int16MultiArray, Bool, String
 from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
 
@@ -44,11 +44,18 @@ class MinimalBridge(Node):
         self.wall_angle = 0.0
         self.scan_lock = threading.Lock()
 
+        # Contact tracking
+        self.wall_contact = False
+        self.ground_contact = ''
+        self.contact_lock = threading.Lock()
+
         # 1. ROS Setup
         self.cmd_vel_pub = self.create_publisher(Twist, '/marble_hd2/cmd_vel', 10)
         self.create_subscription(Int16MultiArray, '/local_grid', self.grid_callback, 10)
         self.create_subscription(LaserScan, '/marble_hd2/planar_laser/scan', self.scan_callback, 10)
         self.create_subscription(Clock, '/clock', self.clock_callback, 10)
+        self.create_subscription(Bool, '/marble_hd2/wall_contact', self.wall_contact_callback, 10)
+        self.create_subscription(String, '/marble_hd2/ground_contact', self.ground_contact_callback, 10)
 
         # 1.1 Gazebo Control Client
         self.world_control_client = self.create_client(ControlWorld, '/world/shapes/control')
@@ -115,6 +122,14 @@ class MinimalBridge(Node):
     def clock_callback(self, msg):
         with self.sim_time_lock:
             self.current_sim_time = msg.clock.sec + msg.clock.nanosec * 1e-9
+
+    def wall_contact_callback(self, msg):
+        with self.contact_lock:
+            self.wall_contact = msg.data
+
+    def ground_contact_callback(self, msg):
+        with self.contact_lock:
+            self.ground_contact = msg.data
 
     def step_simulation(self, steps=1):
         """Step the simulation by N steps"""
@@ -274,13 +289,19 @@ class MinimalBridge(Node):
                     current_wall_dist = self.wall_distance
                     current_wall_angle = self.wall_angle
 
+                with self.contact_lock:
+                    current_wall_contact = self.wall_contact
+                    current_ground_contact = self.ground_contact
+
                 # Send back the actual observation
                 # msgpack_numpy handles the conversion of the NumPy array automatically
                 reply = {
                     "status": "ok", 
                     "observation": obs,
                     "wall_distance": current_wall_dist,
-                    "wall_angle": current_wall_angle
+                    "wall_angle": current_wall_angle,
+                    "wall_contact": current_wall_contact,
+                    "ground_contact": current_ground_contact
                 }
                 self.zmq_socket.send(msgpack.packb(reply))
 

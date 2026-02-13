@@ -34,6 +34,7 @@ setup(
                 'grid_window_publisher = firebot_rl.local_grid_window:main',
                 'grid_window_plotter = firebot_rl.local_grid_plotter:main',
                 'zmq_bridge = firebot_rl.zmq_bridge:main',
+                'contact_monitor = firebot_rl.contact_monitor:main',
         ],
     },
 )

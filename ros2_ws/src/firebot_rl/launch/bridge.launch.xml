@@ -43,8 +43,20 @@
            gz_type_name="gz.msgs.LaserScan"
            direction="GZ_TO_ROS"/>
 
-    <topic ros_topic_name="/marble_hd2/bumper/contact"
-           gz_topic_name="/world/shapes/model/marble_hd2/link/base_link/sensor/bumper/contact"
+    <topic ros_topic_name="/marble_hd2/contact"
+           gz_topic_name="/world/shapes/model/marble_hd2/link/left_track/sensor/bumper_left/contact"
+           ros_type_name="ros_gz_interfaces/msg/Contacts"
+           gz_type_name="gz.msgs.Contacts"
+           direction="GZ_TO_ROS"/>
+
+    <topic ros_topic_name="/marble_hd2/contact"
+           gz_topic_name="/world/shapes/model/marble_hd2/link/right_track/sensor/bumper_right/contact"
+           ros_type_name="ros_gz_interfaces/msg/Contacts"
+           gz_type_name="gz.msgs.Contacts"
+           direction="GZ_TO_ROS"/>
+
+    <topic ros_topic_name="/marble_hd2/contact"
+           gz_topic_name="/world/shapes/model/marble_hd2/link/base_link/sensor/bumper_body/contact"
            ros_type_name="ros_gz_interfaces/msg/Contacts"
            gz_type_name="gz.msgs.Contacts"
            direction="GZ_TO_ROS"/>
