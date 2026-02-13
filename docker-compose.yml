@@ -59,3 +59,24 @@ services:
     network_mode: host
     working_dir: /app
     command: sh -c "uv sync --extra cuda && uv run --extra cuda train.py"
+
+  teleop:
+    image: astral/uv:debian
+    volumes:
+      - ./rl_agent:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./.cache/uv:/root/.cache/uv
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - UV_LINK_MODE=copy
+      - UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+    devices:
+      - nvidia.com/gpu=all
+    security_opt:
+      - label=disable
+    network_mode: host
+    working_dir: /app
+    command: sh -c "uv sync --extra cuda && uv run --extra cuda teleop_gym.py"

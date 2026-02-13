@@ -1,20 +1,38 @@
 # TexasStateUniversity-HiPE-Thesis
 
-## Installing on NVIDIA
+RL-based FireBot navigation in Gazebo.
 
-1. Make sure you have working NVIDIA drivers ```nvidia-smi```
-2. Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)
-3. Install [Podman](https://podman.io/) or [Docker](docker.com). If using Docker, a [rootless install is recommended](https://docs.docker.com/engine/security/rootless/).
-4. Make sure you have ```podman-compose``` or ```docker-compose``` installed.
-5. Clone this repository ```git clone git@github.com:Ellsworth/TexasStateUniversity-HiPE-Thesis.git```
-6. ```cd TexasStateUniversity-HiPE-Thesis```
-7. Enable X11 forwarding ```xhost +SI:localuser:$USER```
-8. Launch it! ```podman compose up```
+## Prerequisites
 
-## Installing on AMD
-1. Install [Podman](https://podman.io/) or [Docker](docker.com). If using Docker, a [rootless install is recommended](https://docs.docker.com/engine/security/rootless/).
-2. Make sure you have ```podman-compose``` or ```docker-compose``` installed.
-3. Clone this repository ```git clone git@github.com:Ellsworth/TexasStateUniversity-HiPE-Thesis.git```
-4. ```cd TexasStateUniversity-HiPE-Thesis```
-5. Enable X11 forwarding ```xhost +SI:localuser:$USER```
-6. Launch it! ```podman compose -f compose-amd.yml up```
+1.  **Podman** (or Docker) - [Installation Guide](https://podman.io/docs/installation)
+2.  **NVIDIA Container Toolkit** - [Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+3.  **Just** - [Installation Guide](https://github.com/casey/just)
+
+> [!NOTE]
+> Make sure you have working NVIDIA drivers installed (`nvidia-smi`).
+
+## Getting Started
+
+1.  **Clone the repository**:
+    ```bash
+    git clone git@github.com:Ellsworth/TexasStateUniversity-HiPE-Thesis.git
+    cd TexasStateUniversity-HiPE-Thesis
+    ```
+
+2.  **Launch the environment**:
+    ```bash
+    just
+    ```
+    This will set up X11 forwarding and launch the Gazebo environment.
+
+## Common Operations
+
+-   **`just`**: Start the Gazebo environment (default).
+-   **`just train`**: Start the RL agent training.
+-   **`just teleop`**: Start the teleoperation script to control the robot manually.
+-   **`just shell`**: Jump into a shell within the running container.
+-   **`just stop`**: Stop all running containers.
+-   **`just clean`**: Remove build artifacts.
+
+---
+*For AMD GPU support, see `compose-amd.yml` and the `amd-*` targets in the `justfile`.*
