@@ -58,7 +58,7 @@ services:
       - label=disable
     network_mode: host
     working_dir: /app
-    command: sh -c "uv sync --extra cuda && uv run --extra cuda train.py"
+    command: sh -c "uv sync && uv run train.py"
 
   teleop:
     image: astral/uv:debian
@@ -79,4 +79,4 @@ services:
       - label=disable
     network_mode: host
     working_dir: /app
-    command: sh -c "uv sync --extra cuda && uv run --extra cuda teleop_gym.py"
+    command: sh -c "uv sync && uv run teleop_gym.py"
