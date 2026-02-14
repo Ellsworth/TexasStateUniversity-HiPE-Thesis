@@ -26,7 +26,7 @@ amd-gazebo:
   podman compose -f compose-amd.yml up gazebo
 
 amd-teleop:
-  xhost +SI:localuser:$USER
+  nix-shell -p xorg.xhost --run "xhost +SI:localuser:$USER"
   podman compose -f compose-amd.yml up teleop_gym
 
 amd-train:

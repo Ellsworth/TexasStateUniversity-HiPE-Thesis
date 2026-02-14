@@ -13,6 +13,7 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
+      - GZ_GUI=${GZ_GUI:-0}
       - IGN_GAZEBO_RESOURCE_PATH=/workspace/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
       # NVIDIA Specific Environment Variables
       - NVIDIA_VISIBLE_DEVICES=all

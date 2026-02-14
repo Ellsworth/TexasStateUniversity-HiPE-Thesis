@@ -87,11 +87,7 @@ def generate_launch_description():
         description="Gazebo verbosity level (-v)",
     )
 
-    run_headless_arg = DeclareLaunchArgument(
-        "headless",
-        default_value=TextSubstitution(text="false"),
-        description="Run Gazebo headless if true (adds -s / server-only flags depending on gz_sim wrapper)",
-    )
+
 
     use_rviz_arg = DeclareLaunchArgument(
         "rviz",
@@ -129,10 +125,11 @@ def generate_launch_description():
     gz_sim_launch = PathJoinSubstitution([ros_gz_share, "launch", "gz_sim.launch.py"])
 
     # gz_args is a single string in many ros_gz_sim versions; pass as one composed string
-    # Format: "<world_path> -r -v <N>"
+    # Default to headless (-s). Set GZ_GUI=1 to launch with the GUI.
+    server_only = "" if os.environ.get("GZ_GUI", "0") == "1" else " -s"
     gz_args = [
         LaunchConfiguration("world"),
-        TextSubstitution(text=" -r -v "),
+        TextSubstitution(text=f" -r{server_only} -v "),
         LaunchConfiguration("gz_verbosity"),
     ]
 
@@ -286,7 +283,7 @@ def generate_launch_description():
             y_arg,
             z_arg,
             gz_verbosity_arg,
-            run_headless_arg,
+
             use_rviz_arg,
             rviz_config_arg,
             use_cartographer_arg,

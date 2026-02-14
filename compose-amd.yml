@@ -12,6 +12,7 @@ services:
     environment:
       DISPLAY: ${DISPLAY}
       QT_X11_NO_MITSHM: "1"
+      GZ_GUI: ${GZ_GUI:-0}
       IGN_GAZEBO_RESOURCE_PATH: /workspace/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
 
     devices:
@@ -48,7 +49,7 @@ services:
       - UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python
     network_mode: host
     working_dir: /app
-    command: sh -c "uv sync --extra rocm && uv run --extra rocm teleop_gym.py"
+    command: sh -c "uv sync && uv run teleop_gym.py"
 
   train:
     image: astral/uv:debian
