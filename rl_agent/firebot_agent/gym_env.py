@@ -175,7 +175,9 @@ class FireBotEnv(gym.Env):
             truncated = self.current_step >= self.max_episode_steps
             info = {
                 "ground_contact": data.get("ground_contact", ""),
-                "wall_contact": bool(data.get("wall_contact", False))
+                "wall_contact": bool(data.get("wall_contact", False)),
+                "agent_x": float(data.get("agent_x", 0.0)),
+                "agent_y": float(data.get("agent_y", 0.0)),
             }
 
         # Record step if enabled
@@ -239,100 +241,27 @@ class FireBotEnv(gym.Env):
         }
 
     def _calculate_reward(self, data, action):
-        """
-        Reward function:
-        - Target range: 2.0m to 3.0m
-        - Inside range: Distance reward component
-        - Outside range: Penalty scales with distance from target
-        - STRONGLY encourage forward movement: Give most points for driving straight
-        - Penalize staying still (zero velocity)
-        - Penalize backward movement
-        """
-        wall_dist = float(data.get("wall_distance", -1.0))
-        
-        # Constants
-        TARGET_MIN = 2.0
-        TARGET_MAX = 3.0
-        # If no wall is seen (dist < 0), assume it's very far.
-        # We clamp to a reasonable max to prevent excessive negative rewards.
-        MAX_EFFECTIVE_DIST = 10.0 
-        
-        if wall_dist < 0:
-            current_dist = MAX_EFFECTIVE_DIST
-        else:
-            current_dist = wall_dist
-            
-        # Calculate error (distance from the [2.0, 3.0] band)
-        if current_dist < TARGET_MIN:
-            error = TARGET_MIN - current_dist
-        elif current_dist > TARGET_MAX:
-            error = current_dist - TARGET_MAX
-        else:
-            error = 0.0
-            
-        # Distance Reward formulation:
-        # Reduced weight - being in range is good but not the primary goal
-        dist_reward = (1.0 - error) * 0.3
-        
-        # Additional penalty for being too close to the wall
-        # This penalty increases quadratically as the robot gets closer
-        proximity_penalty = 0.0
-        if current_dist < TARGET_MIN:
-            # Penalty scales with how close we are to the wall
-            # At 1.0m: penalty = 1.0 * 2.0 = 2.0
-            # At 0.5m: penalty = 2.25 * 2.0 = 4.5
-            # At 0.1m: penalty = 3.61 * 2.0 = 7.22
-            distance_ratio = (TARGET_MIN - current_dist) / TARGET_MIN
-            proximity_penalty = (distance_ratio ** 2) * 2.0
-            
-        # Forward Velocity Reward:
-        # action is [linear_x, angular_z]
-        # We want to encourage positive linear_x (forward motion)
-        # Assuming action range [-1.0, 1.0] maps to velocity
         linear_x = action[0]
-        angular_z = action[1]
+        wall_contact = data.get("wall_contact", False)
         
-        # MOST IMPORTANT: Reward forward progress heavily
-        # Maximum reward for driving straight at full speed
-        FORWARD_WEIGHT = 1.0  # Increased from 1.0 to make forward motion primary goal
-        vel_reward = max(0, linear_x) * FORWARD_WEIGHT  # Only reward positive velocity
+        # 1. Immediate termination penalty
+        if wall_contact:
+            return -20.0  # Big one-time penalty
         
-        # Staying Still Penalty
-        # Penalize the agent for not moving (linear_x close to 0)
-        VELOCITY_THRESHOLD = 0.1  # Consider anything below this as "stopped"
-        staying_still_penalty = 0.0
-        if abs(linear_x) < VELOCITY_THRESHOLD:
-            # Strong penalty for staying still
-            staying_still_penalty = 1.0
-        
-        # Backwards Penalty
-        # If linear_x is negative, apply a strong penalty
-        backwards_penalty = 0.0
-        if linear_x < 0:
-            # Strongly penalize backward movement
-            backwards_penalty = abs(linear_x) * 2.0 
-        
-        # Angular Velocity Penalty
-        # Discourage turning - want mostly straight driving
-        # Increased penalty to encourage straight driving
-        angular_penalty = (angular_z**2) * 0.5
-        
-        # Bonus for driving straight (high linear, low angular)
-        straight_driving_bonus = 0.0
-        if linear_x > 0.5 and abs(angular_z) < 0.2:
-            # Give extra reward for driving straight at good speed
-            straight_driving_bonus = 1.0
-        
-        # Wall collision penalty
-        collision_penalty = 0.0
-        if data.get("wall_contact", False):
-            collision_penalty = 5.0  # Strong penalty for scraping walls
-
-        total_reward = (dist_reward + vel_reward + straight_driving_bonus 
-                       - backwards_penalty - angular_penalty - staying_still_penalty 
-                       - proximity_penalty - collision_penalty)
+        # 2. Reward movement ONLY if not hitting something
+        # This prevents "wall-farming"
+        vel_reward = 0.0
+        if linear_x > 0.1:
+            vel_reward = linear_x * 0.5 
             
-        return float(total_reward)
+        # 3. Smoothness (penalize jittery steering)
+        angular_penalty = (action[1]**2) * 0.2
+        
+        # 4. Small survival bonus
+        # Encourages the agent to stay in the game without hitting walls
+        survival_reward = 0.1 
+        
+        return vel_reward + survival_reward - angular_penalty
 
     def close(self):
         if self.record_data:

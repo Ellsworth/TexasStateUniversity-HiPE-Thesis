@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PoseArray
 from std_msgs.msg import Int16MultiArray, Bool, String
 from sensor_msgs.msg import LaserScan
 from rosgraph_msgs.msg import Clock
@@ -49,6 +49,11 @@ class MinimalBridge(Node):
         self.ground_contact = ''
         self.contact_lock = threading.Lock()
 
+        # Pose tracking
+        self.agent_x = 0.0
+        self.agent_y = 0.0
+        self.pose_lock = threading.Lock()
+
         # 1. ROS Setup
         self.cmd_vel_pub = self.create_publisher(Twist, '/marble_hd2/cmd_vel', 10)
         self.create_subscription(Int16MultiArray, '/local_grid', self.grid_callback, 10)
@@ -56,6 +61,7 @@ class MinimalBridge(Node):
         self.create_subscription(Clock, '/clock', self.clock_callback, 10)
         self.create_subscription(Bool, '/marble_hd2/wall_contact', self.wall_contact_callback, 10)
         self.create_subscription(String, '/marble_hd2/ground_contact', self.ground_contact_callback, 10)
+        self.create_subscription(PoseArray, '/marble_hd2/pose', self.pose_callback, 10)
 
         # 1.1 Gazebo Control Client
         self.world_control_client = self.create_client(ControlWorld, '/world/shapes/control')
@@ -130,6 +136,12 @@ class MinimalBridge(Node):
     def ground_contact_callback(self, msg):
         with self.contact_lock:
             self.ground_contact = msg.data
+
+    def pose_callback(self, msg):
+        if msg.poses:
+            with self.pose_lock:
+                self.agent_x = msg.poses[0].position.x
+                self.agent_y = msg.poses[0].position.y
 
     def step_simulation(self, steps=1):
         """Step the simulation by N steps"""
@@ -293,6 +305,10 @@ class MinimalBridge(Node):
                     current_wall_contact = self.wall_contact
                     current_ground_contact = self.ground_contact
 
+                with self.pose_lock:
+                    current_agent_x = self.agent_x
+                    current_agent_y = self.agent_y
+
                 # Send back the actual observation
                 # msgpack_numpy handles the conversion of the NumPy array automatically
                 reply = {
@@ -301,7 +317,9 @@ class MinimalBridge(Node):
                     "wall_distance": current_wall_dist,
                     "wall_angle": current_wall_angle,
                     "wall_contact": current_wall_contact,
-                    "ground_contact": current_ground_contact
+                    "ground_contact": current_ground_contact,
+                    "agent_x": current_agent_x,
+                    "agent_y": current_agent_y
                 }
                 self.zmq_socket.send(msgpack.packb(reply))
 

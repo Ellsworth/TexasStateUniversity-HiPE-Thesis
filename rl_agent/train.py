@@ -6,6 +6,7 @@ import os
 import torch
 from firebot_agent.utils import convert_continuous_to_discrete
 from firebot_agent.gym_env import FireBotEnv
+from firebot_agent.heatmap_wrapper import PositionHeatmapWrapper
 import gymnasium as gym
 from gymnasium.wrappers import FrameStackObservation
 from d3rlpy.logging import TensorboardAdapterFactory
@@ -167,6 +168,7 @@ def main():
             agent_name="CQL_Agent",
             record_data=False 
         )
+        env = PositionHeatmapWrapper(env, save_every=5000)
         env = GridObservationWrapper(env)
         
         if args.n_frames > 1:
