@@ -4,6 +4,8 @@ import numpy as np
 import argparse
 import sys
 import time
+import os
+from datetime import datetime
 from firebot_agent.gym_env import FireBotEnv
 
 # Initialize Pygame
@@ -32,8 +34,15 @@ class FireBotTeleop:
         self.continuous = continuous
         self.mock = mock
         
+        # Prepare recording path
+        recording_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recordings")
+        os.makedirs(recording_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_file = os.path.join(recording_dir, f"teleop_{timestamp}.npz")
+        print(f"Recording will be saved to: {output_file}")
+        
         # Initialize Environment
-        self.env = FireBotEnv(discrete_actions=not continuous, mock=mock, agent_name="teleop", record_data=True)
+        self.env = FireBotEnv(discrete_actions=not continuous, mock=mock, agent_name="teleop", record_data=True, output_file=output_file)
         self.observation, _ = self.env.reset()
         
         # Pygame Setup

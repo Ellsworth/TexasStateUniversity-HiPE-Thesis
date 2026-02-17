@@ -26,7 +26,7 @@ class FireBotEnv(gym.Env):
     """
     metadata = {"render_modes": [], "render_fps": 10}
 
-    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False, agent_name="unknown", record_data=False):
+    def __init__(self, ip="127.0.0.1", port=5555, max_episode_steps=1000, discrete_actions=False, mock=False, agent_name="unknown", record_data=False, output_file="offline_dataset.npz"):
         super().__init__()
         
         self.max_episode_steps = max_episode_steps
@@ -35,6 +35,7 @@ class FireBotEnv(gym.Env):
         self.mock = mock
         self.agent_name = agent_name
         self.record_data = record_data
+        self.output_file = output_file
         
         if self.record_data:
             self.collector = OfflineDataCollector()
@@ -265,7 +266,7 @@ class FireBotEnv(gym.Env):
 
     def close(self):
         if self.record_data:
-            self.collector.save()
+            self.collector.save(self.output_file)
             
         if not self.mock:
             self.socket.close()

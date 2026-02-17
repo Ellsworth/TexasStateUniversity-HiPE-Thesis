@@ -1,19 +1,19 @@
 services:
   gazebo:
+    env_file: .env
     build:
       context: .
       dockerfile: docker/ros-jazzy-gazebo.Dockerfile
     container_name: gazebo
     network_mode: host
     working_dir: /workspace
-    
+
     ports:
-    - 5555:5555 # ZMQ Port
+      - 5555:5555 # ZMQ Port
 
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
-      - GZ_GUI=${GZ_GUI:-0}
       - IGN_GAZEBO_RESOURCE_PATH=/workspace/assets/models:${IGN_GAZEBO_RESOURCE_PATH}
       # NVIDIA Specific Environment Variables
       - NVIDIA_VISIBLE_DEVICES=all
@@ -24,13 +24,13 @@ services:
       - nvidia.com/gpu=all
 
     security_opt:
-      - label=disable  # Required for SELinux (common on NixOS/Fedora) to access GPU/X11
+      - label=disable # Required for SELinux (common on NixOS/Fedora) to access GPU/X11
 
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ./.cache/fuel/:/root/.gz/fuel:rw
       - ./.cache/rosdep:/root/.ros/rosdep/sources.cache:rw
-      - ./:/workspace:Z  # Added :Z for SELinux relabeling of your code
+      - ./:/workspace:Z # Added :Z for SELinux relabeling of your code
 
     command: >
       bash -c "

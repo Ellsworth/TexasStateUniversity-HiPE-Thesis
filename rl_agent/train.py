@@ -30,16 +30,15 @@ class GridObservationWrapper(gym.ObservationWrapper):
 def main():
     parser = argparse.ArgumentParser(description="DiscreteCQL Training (Offline Pretraining + Online Fine-tuning)")
     parser.add_argument("--dataset", type=str, default="offline_dataset.npz", help="Path to the offline dataset (npz)")
-    parser.add_argument("--n-steps", type=int, default=1000000, help="Number of training steps (used as default for both stages)")
-    parser.add_argument("--pretrain-steps", type=int, default=None, help="Number of offline pretraining steps (overrides --n-steps for pretraining)")
-    parser.add_argument("--finetune-steps", type=int, default=None, help="Number of online fine-tuning steps (overrides --n-steps for fine-tuning)")
+    parser.add_argument("--n-steps", type=int, default=1000000, help="Number of training steps (default for pretraining)")
+    parser.add_argument("--pretrain-steps", type=int, default=None, help="Number of offline pretraining steps (overrides --n-steps)")
+    parser.add_argument("--finetune-steps", type=int, default=0, help="Number of online fine-tuning steps (set > 0 to enable online fine-tuning)")
     parser.add_argument("--save-path", type=str, default="d3rlpy_logs/cql_model.d3", help="Path to save the trained model")
     parser.add_argument("--pretrain-checkpoint", type=str, default="d3rlpy_logs/cql_pretrained.d3", help="Path to save/load pretrained model")
     parser.add_argument("--n-frames", type=int, default=4, help="Number of frames to stack")
     parser.add_argument("--load-checkpoint", type=str, default=None, help="Path to checkpoint to load for resuming training")
     
     # Online arguments
-    parser.add_argument("--online", action="store_true", help="Enable online fine-tuning after offline pretraining")
     parser.add_argument("--buffer-size", type=int, default=200000, help="Replay buffer size for online training")
     parser.add_argument("--mock", action="store_true", help="Use mock environment (no ZMQ)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="ZMQ server host")
@@ -60,7 +59,7 @@ def main():
 
     # Determine training steps for each stage
     pretrain_steps = args.pretrain_steps if args.pretrain_steps is not None else args.n_steps
-    finetune_steps = args.finetune_steps if args.finetune_steps is not None else args.n_steps
+    finetune_steps = args.finetune_steps
 
     # Initialize DiscreteCQL (better for offline RL with discrete actions)
     cql = d3rlpy.algos.DiscreteCQLConfig(
@@ -70,63 +69,109 @@ def main():
         alpha=1.0  # CQL regularization weight
     ).create(device=torch.cuda.is_available())
 
+    # Function to load and concatenate datasets
+    def load_dataset(path):
+        if os.path.isdir(path):
+            files = sorted([os.path.join(path, f) for f in os.listdir(path) if f.endswith('.npz')])
+            if not files:
+                raise ValueError(f"No .npz files found in {path}")
+            print(f"Found {len(files)} .npz files in {path}")
+        else:
+            if not os.path.exists(path):
+                raise ValueError(f"Dataset not found at {path}")
+            files = [path]
+
+        all_observations = []
+        all_actions = []
+        all_rewards = []
+        all_terminals = []
+        
+        obs_shape = None
+
+        for f in files:
+            print(f"Loading {f}...")
+            data = np.load(f)
+            
+            if 'obs_local_grid' in data:
+                obs = data['obs_local_grid']
+            elif 'observations' in data:
+                obs = data['observations']
+            else:
+                raise ValueError(f"Could not find observations in {f}")
+            
+            # Validation
+            if obs_shape is None:
+                obs_shape = obs.shape[1:]
+            elif obs.shape[1:] != obs_shape:
+                raise ValueError(f"Shape mismatch in {f}: expected {obs_shape}, got {obs.shape[1:]}")
+
+            all_observations.append(obs)
+            all_actions.append(data['actions'])
+            all_rewards.append(data['rewards'])
+            all_terminals.append(data['terminals'])
+
+        # Concatenate
+        observations = np.concatenate(all_observations, axis=0)
+        actions = np.concatenate(all_actions, axis=0)
+        rewards = np.concatenate(all_rewards, axis=0)
+        terminals = np.concatenate(all_terminals, axis=0)
+        
+        return observations, actions, rewards, terminals
+
     # ============ STAGE 1: OFFLINE PRETRAINING ============
     if args.load_checkpoint:
         print(f"Loading checkpoint from {args.load_checkpoint}...")
         # For resuming, we need to know the shape. Let's load the dataset to infer it.
-        if os.path.exists(args.dataset):
-            data = np.load(args.dataset)
-            if 'obs_local_grid' in data:
-                observations = data['obs_local_grid']
-            elif 'observations' in data:
-                observations = data['observations']
-            else:
-                raise ValueError("Could not find observations in dataset. Keys: " + str(data.keys()))
-            
-            # Build model structure before loading
-            obs_shape = observations[0].shape
-            if args.n_frames > 1:
-                # With frame stacking, shape will be (n_frames, H, W)
-                obs_shape = (args.n_frames, obs_shape[-2], obs_shape[-1])
-            
-            # Create a dummy environment to build the model
-            # We'll use the first observation to infer shapes
-            from d3rlpy.dataset import MDPDataset
-            actions = convert_continuous_to_discrete(data['actions'])
-            dataset = MDPDataset(
-                observations=observations[:1],
-                actions=actions[:1],
-                rewards=data['rewards'][:1],
-                terminals=data['terminals'][:1]
-            )
-            cql.build_with_dataset(dataset)
-            cql.load_model(args.load_checkpoint)
-            print("Checkpoint loaded successfully.")
+        # We can just load the first file if it's a directory to get the shape
+        if os.path.isdir(args.dataset):
+             files = sorted([os.path.join(args.dataset, f) for f in os.listdir(args.dataset) if f.endswith('.npz')])
+             if not files:
+                 raise ValueError(f"No .npz files found in {args.dataset}")
+             check_file = files[0]
+        elif os.path.exists(args.dataset):
+             check_file = args.dataset
         else:
-            raise ValueError(f"Cannot load checkpoint without dataset at {args.dataset}")
+             raise ValueError(f"Cannot load checkpoint without dataset at {args.dataset}")
+        
+        data = np.load(check_file)
+        if 'obs_local_grid' in data:
+            observations = data['obs_local_grid']
+        elif 'observations' in data:
+            observations = data['observations']
+        else:
+            raise ValueError("Could not find observations in dataset.")
+            
+        # Build model structure before loading
+        obs_shape = observations[0].shape
+        if args.n_frames > 1:
+            # With frame stacking, shape will be (n_frames, H, W)
+            obs_shape = (args.n_frames, obs_shape[-2], obs_shape[-1])
+        
+        # Create a dummy environment to build the model
+        # We'll use the first observation to infer shapes
+        from d3rlpy.dataset import MDPDataset
+        actions = convert_continuous_to_discrete(data['actions'])
+        dataset = MDPDataset(
+            observations=observations[:1],
+            actions=actions[:1],
+            rewards=data['rewards'][:1],
+            terminals=data['terminals'][:1]
+        )
+        cql.build_with_dataset(dataset)
+        cql.load_model(args.load_checkpoint)
+        print("Checkpoint loaded successfully.")
+
     else:
         # Perform offline pretraining
         print("=" * 60)
         print("STAGE 1: OFFLINE PRETRAINING WITH DISCRETECQL")
         print("=" * 60)
         
-        if not os.path.exists(args.dataset):
-            print(f"Error: Dataset not found at {args.dataset}")
-            return
+        observations, actions_raw, rewards, terminals = load_dataset(args.dataset)
 
-        print(f"Loading dataset from {args.dataset}...")
-        data = np.load(args.dataset)
-
-        if 'obs_local_grid' in data:
-            observations = data['obs_local_grid']
-        elif 'observations' in data:
-            observations = data['observations']
-        else:
-            raise ValueError("Could not find observations in dataset. Keys: " + str(data.keys()))
-
-        print("Observations shape:", observations.shape)
+        print("Total observations shape:", observations.shape)
         
-        actions = convert_continuous_to_discrete(data['actions'])
+        actions = convert_continuous_to_discrete(actions_raw)
         
         transition_picker = None
         if args.n_frames > 1:
@@ -136,8 +181,8 @@ def main():
         dataset = d3rlpy.dataset.MDPDataset(
             observations=observations,
             actions=actions,
-            rewards=data['rewards'],
-            terminals=data['terminals'],
+            rewards=rewards,
+            terminals=terminals,
             transition_picker=transition_picker
         )
 
@@ -149,12 +194,15 @@ def main():
             logger_adapter=TensorboardAdapterFactory(root_dir="logs"),
         )
         
+        
+        # Ensure directory exists before saving
+        os.makedirs(os.path.dirname(args.pretrain_checkpoint), exist_ok=True)
         # Save pretrained model
         cql.save_model(args.pretrain_checkpoint)
         print(f"Pretrained model saved to {args.pretrain_checkpoint}")
 
     # ============ STAGE 2: ONLINE FINE-TUNING ============
-    if args.online:
+    if finetune_steps > 0:
         print("\n" + "=" * 60)
         print("STAGE 2: ONLINE FINE-TUNING")
         print("=" * 60)

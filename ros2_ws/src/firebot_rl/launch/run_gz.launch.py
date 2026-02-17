@@ -91,7 +91,7 @@ def generate_launch_description():
 
     use_rviz_arg = DeclareLaunchArgument(
         "rviz",
-        default_value=TextSubstitution(text="true"),
+        default_value=TextSubstitution(text=os.environ.get("LAUNCH_RVIZ", "1")),
         description="Launch RViz2",
     )
 
