@@ -118,6 +118,12 @@ def generate_launch_description():
         default_value=TextSubstitution(text="cartographer.lua"),
         description="Cartographer configuration basename",
     )
+    
+    use_grid_plotter_arg = DeclareLaunchArgument(
+        "grid_plotter",
+        default_value=TextSubstitution(text=os.environ.get("LAUNCH_GRID_PLOTTER", "1")),
+        description="Launch Grid Window Plotter",
+    )
 
     # -----------------------------
     # Gazebo include
@@ -244,7 +250,8 @@ def generate_launch_description():
         name='grid_window_plotter',
         output='screen',
         parameters=[{'refresh_hz': 10.0}],
-        arguments=[]
+        arguments=[],
+        condition=IfCondition(LaunchConfiguration("grid_plotter")),
     )
 
     grid_window_publisher = Node(
@@ -298,7 +305,10 @@ def generate_launch_description():
             rviz,
             cartographer_node,
             occupancy_grid_node,
+            
+            use_grid_plotter_arg,
             grid_window_plotter,
+            
             grid_window_publisher,
             zmq_bridge,
             contact_monitor,
