@@ -39,6 +39,10 @@ class FireBotEnv(gym.Env):
         
         if self.record_data:
             self.collector = OfflineDataCollector()
+            
+        # Hysteresis for wall contact (noisy sensor)
+        self.collision_active = False
+        self.steps_since_contact = 0
         
         # 1. Initialize ZMQ
         if not self.mock:
@@ -111,6 +115,10 @@ class FireBotEnv(gym.Env):
              self.last_action = np.zeros(2, dtype=np.float32)
         else:
              self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
+             
+        # Hysteresis for wall contact (noisy sensor)
+        self.collision_active = False
+        self.steps_since_contact = 0
         
         if self.mock:
             return self._get_mock_observation(), {}
@@ -169,6 +177,7 @@ class FireBotEnv(gym.Env):
             if not isinstance(cmd_vel, np.ndarray):
                 cmd_vel = np.array(cmd_vel, dtype=np.float32)
 
+            # Update state for next step
             self.last_action = cmd_vel.copy()
             self.current_step += 1
             
@@ -247,11 +256,22 @@ class FireBotEnv(gym.Env):
         wall_contact = data.get("wall_contact", False)
         
         if wall_contact:
-            return -10.0 # Slightly lower to encourage more risk-taking initially
+            self.steps_since_contact = 0
+            if not self.collision_active:
+                self.collision_active = True
+                return -10.0 # Impact penalty
+        else:
+            self.steps_since_contact += 1
+            if self.steps_since_contact > 5:
+                self.collision_active = False
+                
+        # If collision is active (sustained or hysteresis), deny all forward reward
+        if self.collision_active:
+            return -0.1
         
         # Reward forward progress more aggressively
         # Removing the > 0.1 gate so the agent feels the benefit of even slow movement
-        vel_reward = linear_x * 2.0 
+        vel_reward = linear_x * 0.5 
         
         # Tie survival to movement: You only get the bonus if you are actually moving
         # This kills the "sit and jitter" strategy
