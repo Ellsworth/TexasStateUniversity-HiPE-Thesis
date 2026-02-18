@@ -61,12 +61,18 @@ def main():
     pretrain_steps = args.pretrain_steps if args.pretrain_steps is not None else args.n_steps
     finetune_steps = args.finetune_steps
 
+    evaluators = {
+        "value_scale": d3rlpy.metrics.AverageValueEstimationEvaluator(),
+        "td_error": d3rlpy.metrics.TDErrorEvaluator()
+    }
+
     # Initialize DiscreteCQL (better for offline RL with discrete actions)
     cql = d3rlpy.algos.DiscreteCQLConfig(
         learning_rate=3e-4,
         batch_size=64,
         target_update_interval=100,
         alpha=1.0  # CQL regularization weight
+        evaluators=evaluators,
     ).create(device=torch.cuda.is_available())
 
     # Function to load and concatenate datasets

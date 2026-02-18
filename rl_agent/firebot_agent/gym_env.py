@@ -243,24 +243,22 @@ class FireBotEnv(gym.Env):
 
     def _calculate_reward(self, data, action):
         linear_x = action[0]
+        angular_z = action[1]
         wall_contact = data.get("wall_contact", False)
         
-        # 1. Immediate termination penalty
         if wall_contact:
-            return -20.0  # Big one-time penalty
+            return -10.0 # Slightly lower to encourage more risk-taking initially
         
-        # 2. Reward movement ONLY if not hitting something
-        # This prevents "wall-farming"
-        vel_reward = 0.0
-        if linear_x > 0.1:
-            vel_reward = linear_x * 0.5 
-            
-        # 3. Smoothness (penalize jittery steering)
-        angular_penalty = (action[1]**2) * 0.2
+        # Reward forward progress more aggressively
+        # Removing the > 0.1 gate so the agent feels the benefit of even slow movement
+        vel_reward = linear_x * 2.0 
         
-        # 4. Small survival bonus
-        # Encourages the agent to stay in the game without hitting walls
-        survival_reward = 0.1 
+        # Tie survival to movement: You only get the bonus if you are actually moving
+        # This kills the "sit and jitter" strategy
+        survival_reward = 0.05 if linear_x > 0.05 else -0.05
+        
+        # Penalize high angular velocity to prevent spinning in circles
+        angular_penalty = (angular_z**2) * 0.5
         
         return vel_reward + survival_reward - angular_penalty
 

@@ -20,7 +20,7 @@ gz topic -t /model/marble_hd2/link/right_track/track_cmd_vel -m gz.msgs.Double -
 
 This worked! ```/cmd_vel``` works as well. 
 
-# January 27
+## January 27
 
 Cartographer works, but the provided 2D occupancy grid leaves some to be desired. Things like ledges aren't depicted well in the map.
 
@@ -36,11 +36,11 @@ root@hipe6-thrc:/workspace#
 
 > The map seems to jitter/drift over time. Need to find out why.
 
-# January 28
+## January 28
 
 Got the windowed 'grid view' for the SLAM data working. Seems to work okay, but there's likely plenty of tuning that needs to be done here.
 
-# February 3
+## February 3
 
 The world control service is setup, along with a basic ZeroMQ bridge for the RL agent to 'teleop' the robot.
 
@@ -74,3 +74,24 @@ def restart_cartographer():
 ```bash
 ros2 service call /world/shapes/set_pose ros_gz_interfaces/srv/SetEntityPose "{entity: {name: 'marble_hd2'}, pose: {position: {x: 5.0, y: 30.0, z: 8.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}"
 ```
+
+
+## February 18th
+
+### (Old) Reward function 
+
+| Component | Logic | Impact on Agent |
+| --- | --- | --- |
+| **Wall Penalty** | `-20.0` if `wall_contact` | High risk for hitting walls |
+| **Velocity Reward** | `linear_x * 0.5` (if `> 0.1`) | Minimal reward for moving forward. |
+| **Survival Bonus** | `+0.1` per step | Constant positive reinforcement for existing. |
+| **Angular Penalty** | `-(action[1]**2) * 0.2` | Discourages sharp or rapid turning. |
+
+### (New) Reward function 
+
+| Component | Logic | Impact on Agent |
+| --- | --- | --- |
+| **Wall Penalty** | `-10.0` if `wall_contact` | Significant but not "paralyzing" penalty. |
+| **Linear Velocity** | `linear_x * 2.0` | Primary motivator. High reward for moving fast. |
+| **Conditional Survival** | `+0.05` if `> 0.05`, else `-0.05` | Ties "staying alive" to "moving forward." |
+| **Angular Penalty** | `-(angular_z**2) * 0.5` | Heavier penalty for unnecessary spinning. |
