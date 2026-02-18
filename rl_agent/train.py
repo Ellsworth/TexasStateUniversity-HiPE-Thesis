@@ -71,9 +71,8 @@ def main():
         learning_rate=3e-4,
         batch_size=64,
         target_update_interval=100,
-        alpha=1.0  # CQL regularization weight
-        reward_scaler=d3rlpy.preprocessing.StandardRewardScaler(),
-        evaluators=evaluators,
+        alpha=1.0,  # CQL regularization weight
+        #reward_scaler=d3rlpy.preprocessing.StandardRewardScaler(),
     ).create(device=torch.cuda.is_available())
 
     # Function to load and concatenate datasets
@@ -199,6 +198,7 @@ def main():
             n_steps=pretrain_steps,
             experiment_name="CQL_Offline_Pretrain",
             logger_adapter=TensorboardAdapterFactory(root_dir="logs"),
+            evaluators=evaluators,
         )
         
         
@@ -253,6 +253,7 @@ def main():
             "n_steps": finetune_steps,
             "experiment_name": "CQL_Online_Finetune",
             "logger_adapter": TensorboardAdapterFactory(root_dir="logs"),
+            "eval_env": env,
         }
         if explorer:
             fit_args["explorer"] = explorer
