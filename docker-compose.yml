@@ -10,6 +10,7 @@ services:
 
     ports:
       - 5555:5555 # ZMQ Port
+      - 8080:8080 # Web Video Server
 
     environment:
       - DISPLAY=${DISPLAY}
@@ -59,7 +60,8 @@ services:
       - label=disable
     network_mode: host
     working_dir: /app
-    command: sh -c "uv sync && uv run train.py"
+    #    command: sh -c "uv sync && uv run train.py --dataset recordings/ --pretrain-steps 500000 --finetune-steps 1000000"
+    command: sh -c "uv sync && uv run train.py --dataset recordings/ --pretrain-checkpoint d3rlpy_logs/cql_pretrained.d3  --pretrain-steps 0 --finetune-steps 1000000"
 
   teleop:
     image: astral/uv:debian

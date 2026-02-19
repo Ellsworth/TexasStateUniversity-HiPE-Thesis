@@ -281,6 +281,19 @@ def generate_launch_description():
         arguments=[]
     )
 
+    web_video_server = Node(
+        package='web_video_server',
+        executable='web_video_server',
+        name='web_video_server',
+        parameters=[{
+            'port': 8080,
+            'address': '0.0.0.0', # Listen on all interfaces
+            'type': 'mjpeg',      # Standard for browser viewing
+            'default_transport': 'compressed' # Saves bandwidth on your BeagleBone
+        }],
+        output='screen'
+    )
+
     return LaunchDescription(
         [
             world_arg,
@@ -312,5 +325,6 @@ def generate_launch_description():
             grid_window_publisher,
             zmq_bridge,
             contact_monitor,
+            web_video_server,
         ]
     )
