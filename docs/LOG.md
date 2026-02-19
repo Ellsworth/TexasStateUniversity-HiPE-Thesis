@@ -95,3 +95,12 @@ ros2 service call /world/shapes/set_pose ros_gz_interfaces/srv/SetEntityPose "{e
 | **Linear Velocity** | `linear_x * 2.0` | Primary motivator. High reward for moving fast. |
 | **Conditional Survival** | `+0.05` if `> 0.05`, else `-0.05` | Ties "staying alive" to "moving forward." |
 | **Angular Penalty** | `-(angular_z**2) * 0.5` | Heavier penalty for unnecessary spinning. |
+
+### Policy Colapse
+
+Looks like the policy collapsed to only moving forward. Once we're in a wall we just sit there.
+
+* Forwards: 0.55
+* Do nothing: -0.05
+* Backwards: -0.55
+* Hit wall: -0.1

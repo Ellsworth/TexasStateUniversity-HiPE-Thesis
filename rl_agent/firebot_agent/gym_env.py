@@ -267,20 +267,25 @@ class FireBotEnv(gym.Env):
                 
         # If collision is active (sustained or hysteresis), deny all forward reward
         if self.collision_active:
-            return -0.1
+            return -1.0
         
         # Reward forward progress more aggressively
         # Removing the > 0.1 gate so the agent feels the benefit of even slow movement
-        vel_reward = linear_x * 0.5 
+        
+        if linear_x > 0.0: # Going forwards
+            vel_reward = linear_x * 0.5 
+        else: # Going backwardss
+            vel_reward = abs(linear_x * 0.1)
+        
         
         # Tie survival to movement: You only get the bonus if you are actually moving
         # This kills the "sit and jitter" strategy
         survival_reward = 0.05 if linear_x > 0.05 else -0.05
         
         # Penalize high angular velocity to prevent spinning in circles
-        angular_penalty = (angular_z**2) * 0.5
+        angular_penalty = -(angular_z**2) * 0.3
         
-        return vel_reward + survival_reward - angular_penalty
+        return vel_reward + survival_reward + angular_penalty
 
     def close(self):
         if self.record_data:
