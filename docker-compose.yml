@@ -37,8 +37,6 @@ services:
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
         cd /workspace/ros2_ws &&
-        rosdep update &&
-        rosdep install --from-paths . -y --ignore-src &&
         colcon build --symlink-install &&
         source install/setup.bash &&
         ros2 launch firebot_rl run_gz.launch.py
