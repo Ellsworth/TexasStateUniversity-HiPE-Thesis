@@ -8,6 +8,7 @@ rl_agent/*.zip
 rl_agent/*_tensorboard/
 *.npz
 *.d3 # Model weights
+*.avi # Video output
 logs/
 
 # Python cache folder
