@@ -1,11 +1,12 @@
 FROM docker.io/library/ros:jazzy-ros-base-noble
 
 RUN apt-get update && apt-get install -y \
-    ros-jazzy-ros-gz \
-    ros-jazzy-cartographer \
-    ros-jazzy-cartographer-ros \
-    ros-jazzy-image-view \
-    ros-jazzy-web-video-server \
+    libglvnd0 \
+    libgl1 \
+    libglx0 \
+    libegl1 \
+    libxext6 \
+    libx11-6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy source files to install dependencies

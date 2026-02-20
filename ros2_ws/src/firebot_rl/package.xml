@@ -11,7 +11,11 @@
   <exec_depend>python3-zmq</exec_depend>
   <exec_depend>python3-msgpack</exec_depend>
   <exec_depend>python3-msgpack-numpy</exec_depend>
+  <exec_depend>ros_gz</exec_depend>
   <exec_depend>ros_gz_interfaces</exec_depend>
+  <exec_depend>cartographer</exec_depend>
+  <exec_depend>cartographer_ros</exec_depend>
+  <exec_depend>image_view</exec_depend>
   <exec_depend>web_video_server</exec_depend>
 
   <!-- Tests -->
