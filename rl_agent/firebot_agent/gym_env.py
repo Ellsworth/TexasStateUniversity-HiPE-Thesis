@@ -274,7 +274,7 @@ class FireBotEnv(gym.Env):
         
         if linear_x > 0.0: # Going forwards
             vel_reward = linear_x * 0.5 
-        else: # Going backwardss
+        else: # Going backwards
             vel_reward = abs(linear_x * 0.1)
         
         
