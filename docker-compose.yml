@@ -81,3 +81,21 @@ services:
     network_mode: host
     working_dir: /app
     command: sh -c "uv sync && uv run teleop_gym.py"
+
+  tensorboard:
+    image: astral/uv:debian
+    volumes:
+      - ./rl_agent:/app
+      - ./.cache/uv:/root/.cache/uv
+    environment:
+      - UV_LINK_MODE=copy
+      - UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    devices:
+      - nvidia.com/gpu=all
+    security_opt:
+      - label=disable
+    network_mode: host
+    working_dir: /app
+    command: sh -c "uv sync && uv run tensorboard --logdir logs"
