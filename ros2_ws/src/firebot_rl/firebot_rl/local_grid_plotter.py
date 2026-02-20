@@ -5,8 +5,8 @@ with an arrow at the center representing the robot.
 
 Assumptions:
 - Incoming grid is already rotated/aligned to robot heading.
-- Arrow points "forward" in the local grid frame. By convention here: +X (to the right).
-  Change arrow_dir to "up" if your convention is forward=+Y.
+- Arrow points "forward" in the local grid frame. By convention here: down (negative Y in data coords).
+  Change arrow_dir to "up", "right", or "left" as needed.
 
 Run:
   ros2 run <your_pkg> local_grid_plot
@@ -31,7 +31,7 @@ class LocalGridPlotter(Node):
         self.declare_parameter("topic", "/local_grid")
         self.declare_parameter("refresh_hz", 20.0)
         self.declare_parameter("arrow_length_cells", 6.0)
-        self.declare_parameter("arrow_dir", "right")  # "right" or "up"
+        self.declare_parameter("arrow_dir", "down")  # "up", "down", "left", "right"
 
         self.topic = self.get_parameter("topic").value
         self.refresh_hz = float(self.get_parameter("refresh_hz").value)
@@ -96,6 +96,10 @@ class LocalGridPlotter(Node):
 
         if self.arrow_dir == "up":
             dx, dy = 0.0, self.arrow_len
+        elif self.arrow_dir == "down":
+            dx, dy = 0.0, -self.arrow_len
+        elif self.arrow_dir == "left":
+            dx, dy = -self.arrow_len, 0.0
         else:  # default "right"
             dx, dy = self.arrow_len, 0.0
 
