@@ -221,7 +221,7 @@ def main():
             discrete_actions=True,  # DiscreteCQL requires discrete actions
             mock=args.mock,
             agent_name="CQL_Agent",
-            record_data=False 
+            record_data=True
         )
         env = PositionHeatmapWrapper(env, save_every=5000)
         env = GridObservationWrapper(env)
