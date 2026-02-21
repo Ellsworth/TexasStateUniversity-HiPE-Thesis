@@ -7,6 +7,7 @@ import torch
 from firebot_agent.utils import convert_continuous_to_discrete
 from firebot_agent.gym_env import FireBotEnv
 from firebot_agent.heatmap_wrapper import PositionHeatmapWrapper
+from firebot_agent.log_master import FireBotLogger
 import gymnasium as gym
 from gymnasium.wrappers import FrameStackObservation
 from d3rlpy.logging import TensorboardAdapterFactory
@@ -30,11 +31,10 @@ class GridObservationWrapper(gym.ObservationWrapper):
 def main():
     parser = argparse.ArgumentParser(description="DiscreteCQL Training (Offline Pretraining + Online Fine-tuning)")
     parser.add_argument("--dataset", type=str, default="offline_dataset.npz", help="Path to the offline dataset (npz)")
-    parser.add_argument("--n-steps", type=int, default=1000000, help="Number of training steps (default for pretraining)")
-    parser.add_argument("--pretrain-steps", type=int, default=None, help="Number of offline pretraining steps (overrides --n-steps)")
+    parser.add_argument("--pretrain-steps", type=int, default=1000000, help="Number of offline pretraining steps")
     parser.add_argument("--finetune-steps", type=int, default=0, help="Number of online fine-tuning steps (set > 0 to enable online fine-tuning)")
-    parser.add_argument("--save-path", type=str, default="d3rlpy_logs/cql_model.d3", help="Path to save the trained model")
-    parser.add_argument("--pretrain-checkpoint", type=str, default="d3rlpy_logs/cql_pretrained.d3", help="Path to save/load pretrained model")
+    parser.add_argument("--save-path", type=str, default="d3rlpy_logs/cql_model.pt", help="Path to save the trained model")
+    parser.add_argument("--pretrain-checkpoint", type=str, default="d3rlpy_logs/cql_pretrained.pt", help="Path to save/load pretrained model")
     parser.add_argument("--n-frames", type=int, default=4, help="Number of frames to stack")
     parser.add_argument("--load-checkpoint", type=str, default=None, help="Path to checkpoint to load for resuming training")
     
@@ -45,7 +45,15 @@ def main():
     parser.add_argument("--port", type=int, default=5555, help="ZMQ server port")
     
     args = parser.parse_args()
-    
+
+    # Create a single timestamped log directory for this run
+    logger = FireBotLogger(base_dir="logs", experiment_name="CQL_Train")
+    log_dir = logger.get_log_dir()
+
+    # Derive output paths from the log directory
+    pretrain_checkpoint = os.path.join(log_dir, "cql_pretrained.pt")
+    save_path = os.path.join(log_dir, "cql_model.pt")
+
     # Print GPU info
     print("=" * 60)
     if torch.cuda.is_available():
@@ -58,7 +66,7 @@ def main():
     print("=" * 60)
 
     # Determine training steps for each stage
-    pretrain_steps = args.pretrain_steps if args.pretrain_steps is not None else args.n_steps
+    pretrain_steps = args.pretrain_steps
     finetune_steps = args.finetune_steps
 
     evaluators = {
@@ -197,16 +205,13 @@ def main():
             dataset,
             n_steps=pretrain_steps,
             experiment_name="CQL_Offline_Pretrain",
-            logger_adapter=TensorboardAdapterFactory(root_dir="logs"),
+            logger_adapter=TensorboardAdapterFactory(root_dir=log_dir),
             evaluators=evaluators,
         )
-        
-        
-        # Ensure directory exists before saving
-        os.makedirs(os.path.dirname(args.pretrain_checkpoint), exist_ok=True)
+
         # Save pretrained model
-        cql.save_model(args.pretrain_checkpoint)
-        print(f"Pretrained model saved to {args.pretrain_checkpoint}")
+        cql.save(pretrain_checkpoint)
+        print(f"Pretrained model saved to {pretrain_checkpoint}")
 
     # ============ STAGE 2: ONLINE FINE-TUNING ============
     if finetune_steps > 0:
@@ -215,15 +220,17 @@ def main():
         print("=" * 60)
         
         # Create environment
+        online_dataset_path = os.path.join(log_dir, "online_dataset.npz")
         env = FireBotEnv(
             ip=args.host,
             port=args.port,
             discrete_actions=True,  # DiscreteCQL requires discrete actions
             mock=args.mock,
             agent_name="CQL_Agent",
-            record_data=True
+            record_data=True,
+            output_file=online_dataset_path,
         )
-        env = PositionHeatmapWrapper(env, save_every=5000)
+        env = PositionHeatmapWrapper(env, save_every=5000, save_dir=log_dir)
         env = GridObservationWrapper(env)
         
         if args.n_frames > 1:
@@ -237,12 +244,13 @@ def main():
         # Create Replay Buffer
         buffer = d3rlpy.dataset.create_fifo_replay_buffer(limit=args.buffer_size, env=env)
         
-        # Start Online Fine-tuning with decayed exploration
+        # Start Online Fine-tuning with minimal exploration (policy is pretrained)
+        # Low epsilon: we trust the pretrained policy and want to refine, not re-explore
         try:
             explorer = d3rlpy.algos.LinearDecayEpsilonGreedy(
-                start_epsilon=0.3,  # Start with lower epsilon since we're fine-tuning
-                end_epsilon=0.05,
-                duration=int(finetune_steps * 0.5) 
+                start_epsilon=0.05,  # Very low: pretrained policy already knows what to do
+                end_epsilon=0.01,
+                duration=finetune_steps  # Decay slowly over the full run
             )
         except AttributeError:
             explorer = None
@@ -251,9 +259,11 @@ def main():
             "env": env,
             "buffer": buffer,
             "n_steps": finetune_steps,
+            "n_steps_per_epoch": 1000,  # Log/checkpoint every 1000 steps
             "experiment_name": "CQL_Online_Finetune",
-            "logger_adapter": TensorboardAdapterFactory(root_dir="logs"),
-            "eval_env": env,
+            "logger_adapter": TensorboardAdapterFactory(root_dir=log_dir),
+            # NOTE: eval_env intentionally omitted — using the same env object for eval
+            # would reset the environment mid-training episode, corrupting episodes.
         }
         if explorer:
             fit_args["explorer"] = explorer
@@ -264,8 +274,8 @@ def main():
         env.close()
 
     # Save the final model
-    cql.save_model(args.save_path)
-    print(f"\nFinal model saved to {args.save_path}")
+    cql.save(save_path)
+    print(f"\nFinal model saved to {save_path}")
 
 if __name__ == "__main__":
     main()

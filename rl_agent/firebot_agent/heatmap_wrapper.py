@@ -12,7 +12,7 @@ from scipy.ndimage import gaussian_filter
 class PositionHeatmapWrapper(gym.Wrapper):
     """Wrapper that collects agent (x, y) positions and saves heatmap PNGs."""
     def __init__(self, env, log_root="logs/runs", experiment_name="CQL_Online_Finetune",
-                 save_every=5000):
+                 save_every=5000, save_dir=None):
         super().__init__(env)
         self.log_root = log_root
         self.experiment_name = experiment_name
@@ -20,6 +20,8 @@ class PositionHeatmapWrapper(gym.Wrapper):
         self.positions = []
         self.step_count = 0
         self._run_dir = None
+        # If an explicit directory is given, use it directly
+        self._explicit_save_dir = save_dir
 
     def _get_run_dir(self):
         """Find the latest run directory matching our experiment name."""
@@ -39,9 +41,12 @@ class PositionHeatmapWrapper(gym.Wrapper):
         return obs, reward, term, trunc, info
 
     def _save_heatmap(self):
-        run_dir = self._get_run_dir()
-        if run_dir is None:
-            run_dir = "heatmaps"
+        if self._explicit_save_dir is not None:
+            run_dir = self._explicit_save_dir
+        else:
+            run_dir = self._get_run_dir()
+            if run_dir is None:
+                run_dir = "heatmaps"
         os.makedirs(run_dir, exist_ok=True)
 
         pos = np.array(self.positions)

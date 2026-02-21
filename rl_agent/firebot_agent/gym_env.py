@@ -274,8 +274,8 @@ class FireBotEnv(gym.Env):
         
         if linear_x > 0.0: # Going forwards
             vel_reward = linear_x * 0.5 
-        else: # Going backwards
-            vel_reward = abs(linear_x * 0.1)
+        else: # Going backwards — penalize (linear_x < 0, so this is negative)
+            vel_reward = linear_x * 0.1
         
         
         # Tie survival to movement: You only get the bonus if you are actually moving

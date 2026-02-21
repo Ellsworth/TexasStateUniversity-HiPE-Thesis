@@ -3,11 +3,11 @@ import d3rlpy
 import argparse
 import os
 import time
-from datetime import datetime
 
 import torch
 from firebot_agent.gym_env import FireBotEnv
 from firebot_agent.heatmap_wrapper import PositionHeatmapWrapper
+from firebot_agent.log_master import FireBotLogger
 import gymnasium as gym
 from gymnasium.wrappers import FrameStackObservation
 
@@ -28,8 +28,8 @@ class GridObservationWrapper(gym.ObservationWrapper):
 
 def main():
     parser = argparse.ArgumentParser(description="DiscreteCQL Inference (no training)")
-    parser.add_argument("--model", type=str, default="d3rlpy_logs/cql_model.d3",
-                        help="Path to the trained model (.d3 file)")
+    parser.add_argument("--model", type=str, default="d3rlpy_logs/cql_model.pt",
+                        help="Path to the trained model (.pt file)")
     parser.add_argument("--n-episodes", type=int, default=5,
                         help="Number of episodes to run")
     parser.add_argument("--n-frames", type=int, default=4,
@@ -62,11 +62,11 @@ def main():
     if not os.path.exists(args.model):
         raise FileNotFoundError(f"Model not found at: {args.model}")
 
-    # ── Recording path (mirrors teleop naming convention) ─────────────────────
-    recording_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recordings")
-    os.makedirs(recording_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = os.path.join(recording_dir, f"inference_{timestamp}.npz")
+    # ── Create a timestamped log directory for this inference run ─────────────
+    logger = FireBotLogger(base_dir="logs", experiment_name="CQL_Infer")
+    log_dir = logger.get_log_dir()
+
+    output_file = os.path.join(log_dir, "inference_recording.npz")
     if args.record_data:
         print(f"Recording will be saved to: {output_file}")
 
@@ -82,7 +82,7 @@ def main():
     )
 
     if args.save_heatmap:
-        env = PositionHeatmapWrapper(env, save_every=1000)
+        env = PositionHeatmapWrapper(env, save_every=1000, save_dir=log_dir)
 
     env = GridObservationWrapper(env)
 
@@ -90,16 +90,9 @@ def main():
         print(f"Stacking {args.n_frames} frames...")
         env = FrameStackObservation(env, stack_size=args.n_frames)
 
-    # ── Model (built against env so architecture matches saved weights) ───────
+    # ── Model ─────────────────────────────────────────────────────────────────
     print(f"Loading model from {args.model} ...")
-    cql = d3rlpy.algos.DiscreteCQLConfig(
-        learning_rate=3e-4,
-        batch_size=64,
-        target_update_interval=100,
-        alpha=1.0,
-    ).create(device=torch.cuda.is_available())
-    cql.build_with_env(env)
-    cql.load_model(args.model)
+    cql = d3rlpy.load_learnable(args.model, device=torch.cuda.is_available())
     print("Model loaded successfully.")
     print("=" * 60)
 

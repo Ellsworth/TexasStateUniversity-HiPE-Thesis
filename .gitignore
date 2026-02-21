@@ -7,7 +7,7 @@ rl_agent/*.png
 rl_agent/*.zip
 rl_agent/*_tensorboard/
 *.npz
-*.d3 # Model weights
+*.pt # Model weights
 *.avi # Video output
 logs/
 
