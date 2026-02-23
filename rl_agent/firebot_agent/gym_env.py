@@ -330,7 +330,7 @@ class FireBotEnv(gym.Env):
         ground = data.get("ground_contact", "")
         if ground and ground != "staging_area" and ground not in self.visited_rooms:
             self.visited_rooms.add(ground)
-            new_room_bonus = 100.0
+            new_room_bonus = 500.0
             print(f"[FireBotEnv] NEW ROOM: '{ground}' (+{new_room_bonus}) | Visited: {len(self.visited_rooms)} rooms")
         
         return vel_reward + survival_reward + angular_penalty + stuck_penalty + new_room_bonus
