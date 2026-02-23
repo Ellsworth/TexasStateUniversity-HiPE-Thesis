@@ -80,7 +80,7 @@ def main():
         batch_size=64,
         target_update_interval=100,
         alpha=1.0,  # CQL regularization weight
-        #reward_scaler=d3rlpy.preprocessing.StandardRewardScaler(),
+        observation_scaler=d3rlpy.preprocessing.PixelObservationScaler(),  # scale 0-255 -> 0-1
     ).create(device=torch.cuda.is_available())
 
     # Function to load and concatenate datasets
