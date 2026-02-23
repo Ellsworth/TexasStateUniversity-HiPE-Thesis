@@ -52,7 +52,7 @@ class LocalGridWindowNode(Node):
         self.declare_parameter("N", 65)          # cols
         self.declare_parameter("M", 65)          # rows
         self.declare_parameter("pad_value", -1)
-        self.declare_parameter("publish_hz", 5.0)
+        self.declare_parameter("publish_hz", 10.0)
 
         self.map_topic = self.get_parameter("map_topic").value
         self.out_topic = self.get_parameter("out_topic").value
