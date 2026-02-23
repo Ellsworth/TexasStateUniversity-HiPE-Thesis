@@ -40,6 +40,7 @@ def main():
     
     # Online arguments
     parser.add_argument("--buffer-size", type=int, default=200000, help="Replay buffer size for online training")
+    parser.add_argument("--mix-ratio", type=float, default=0.5, help="Fraction of each batch sampled from offline data (0.0=all online, 1.0=all offline)")
     parser.add_argument("--mock", action="store_true", help="Use mock environment (no ZMQ)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="ZMQ server host")
     parser.add_argument("--port", type=int, default=5555, help="ZMQ server port")
@@ -242,8 +243,75 @@ def main():
         if not hasattr(cql, '_impl') or cql._impl is None:
             cql.build_with_env(env)
 
-        # Create Replay Buffer
-        buffer = d3rlpy.dataset.create_fifo_replay_buffer(limit=args.buffer_size, env=env)
+        # ── Frame-stacking strategy for fine-tuning ──────────────────────────
+        # The online env is wrapped with FrameStackObservation, so each step
+        # already returns (n_frames, H, W) observations.  Storing those in the
+        # FIFO buffer and then applying FrameStackTransitionPicker on top would
+        # double-stack → (n_frames*n_frames, H, W).  Instead we:
+        #   1. Use the default BasicTransitionPicker for the online buffer.
+        #   2. Pre-stack the offline observations to (n_frames, H, W) so they
+        #      match the online format.
+        # Both buffers then use BasicTransitionPicker → MixedReplayBuffer passes
+        # its picker-type assertion, and batch shapes are always consistent.
+
+        def prestack_frames(obs, terminals, n_frames):
+            """Convert (N, 1, H, W) raw frames to (N, n_frames, H, W).
+
+            Episode boundaries (terminals) prevent frames from bleeding across
+            episodes; the first n_frames-1 steps repeat the episode's first frame.
+            """
+            N, _, H, W = obs.shape
+            out = np.zeros((N, n_frames, H, W), dtype=obs.dtype)
+            ep_start = 0
+            for i in range(N):
+                for f in range(n_frames):
+                    src = max(ep_start, i - (n_frames - 1 - f))
+                    out[i, f] = obs[src, 0]          # squeeze channel dim
+                if terminals[i]:
+                    ep_start = i + 1
+            return out
+
+        # Create online FIFO buffer (BasicTransitionPicker by default)
+        online_buffer = d3rlpy.dataset.create_fifo_replay_buffer(
+            limit=args.buffer_size,
+            env=env,
+        )
+
+        # Load offline data to blend into training batches
+        print("Loading offline dataset for replay buffer blending...")
+        off_obs, off_act_raw, off_rew, off_term = load_dataset(args.dataset)
+        off_act = convert_continuous_to_discrete(off_act_raw)
+
+        if args.n_frames > 1:
+            print(f"Pre-stacking offline observations to ({args.n_frames}, H, W)...")
+            off_obs = prestack_frames(off_obs, off_term, args.n_frames)
+            print(f"Pre-stacked shape: {off_obs.shape}")
+
+        offline_mdp = d3rlpy.dataset.MDPDataset(
+            observations=off_obs,       # (N, n_frames, H, W) or (N, 1, H, W)
+            actions=off_act,
+            rewards=off_rew,
+            terminals=off_term,
+            # BasicTransitionPicker by default — matches online buffer
+        )
+
+        buffer = d3rlpy.dataset.MixedReplayBuffer(
+            primary_replay_buffer=online_buffer,
+            secondary_replay_buffer=offline_mdp,
+            secondary_mix_ratio=args.mix_ratio,
+        )
+
+        # FIFOBuffer.transition_count is 0 until at least one episode is clipped.
+        # With max_episode_steps=10_000, random_steps alone won't complete any
+        # episode, so seed the online buffer with a few offline episodes.
+        seed_episodes = list(offline_mdp.episodes)[:20]
+        for ep in seed_episodes:
+            online_buffer.append_episode(ep)
+        print(f"Pre-seeded online buffer with {len(seed_episodes)} episodes "
+              f"({online_buffer.transition_count} transitions).")
+
+        print(f"MixedReplayBuffer: {args.mix_ratio*100:.0f}% offline / "
+              f"{(1-args.mix_ratio)*100:.0f}% online per batch")
         
         # Start Online Fine-tuning with minimal exploration (policy is pretrained)
         # Low epsilon: we trust the pretrained policy and want to refine, not re-explore
@@ -261,6 +329,7 @@ def main():
             "buffer": buffer,
             "n_steps": finetune_steps,
             "n_steps_per_epoch": 1000,  # Log/checkpoint every 1000 steps
+            "random_steps": 1000,  # Pre-fill online buffer before sampling begins
             "experiment_name": "CQL_Online_Finetune",
             "logger_adapter": TensorboardAdapterFactory(root_dir=log_dir),
             # NOTE: eval_env intentionally omitted — using the same env object for eval
