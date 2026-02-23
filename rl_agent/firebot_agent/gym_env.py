@@ -44,6 +44,11 @@ class FireBotEnv(gym.Env):
         self.collision_active = False
         self.steps_since_contact = 0
         
+        # Stuck detection
+        self.stuck_window = 100          # Steps to look back
+        self.stuck_threshold = 0.5     # Meters; total displacement below this = stuck
+        self.position_history = []      # List of (x, y) tuples
+        
         # 1. Initialize ZMQ
         if not self.mock:
             self.context = zmq.Context()
@@ -120,6 +125,12 @@ class FireBotEnv(gym.Env):
         self.collision_active = False
         self.steps_since_contact = 0
         
+        # Clear stuck detection history
+        self.position_history = []
+        
+        # Clear visited rooms for new episode
+        self.visited_rooms = set()
+        
         if self.mock:
             return self._get_mock_observation(), {}
 
@@ -171,7 +182,32 @@ class FireBotEnv(gym.Env):
             data = msgpack.unpackb(message)
             
             observation = self._process_observation(data)
-            reward = self._calculate_reward(data, cmd_vel) # Use cmd_vel (mapped action) for reward calc
+            
+            # --- Stuck detection ---
+            agent_x = float(data.get("agent_x", 0.0))
+            agent_y = float(data.get("agent_y", 0.0))
+            self.position_history.append((agent_x, agent_y))
+            stuck = False
+            if len(self.position_history) >= self.stuck_window:
+                self.position_history = self.position_history[-self.stuck_window:]
+                oldest_x, oldest_y = self.position_history[0]
+                displacement = np.sqrt((agent_x - oldest_x)**2 + (agent_y - oldest_y)**2)
+                if displacement < self.stuck_threshold:
+                    stuck = True
+                    print(f"[FireBotEnv] Agent stuck (displacement={displacement:.3f}m over {self.stuck_window} steps). Resetting simulation.")
+                    # Proactively reset the simulation NOW so we don't wait for the
+                    # training loop to call env.reset() — and so subsequent steps
+                    # don't repeatedly fire the stuck flag.
+                    reset_payload = {"reset": True, "command": "step"}
+                    self.socket.send(msgpack.packb(reset_payload))
+                    self.socket.recv()  # Drain the response
+                    # Clear all episode state so env.reset() is a no-op on ZMQ
+                    self.position_history = []
+                    self.current_step = 0
+                    self.collision_active = False
+                    self.steps_since_contact = 0
+            
+            reward = self._calculate_reward(data, cmd_vel, stuck=stuck)
             
             # Update state needed for next step
             if not isinstance(cmd_vel, np.ndarray):
@@ -181,7 +217,7 @@ class FireBotEnv(gym.Env):
             self.last_action = cmd_vel.copy()
             self.current_step += 1
             
-            terminated = False # Defining termination logic is hard without specific tasks
+            terminated = stuck  # End episode if agent is stuck
             truncated = self.current_step >= self.max_episode_steps
             info = {
                 "ground_contact": data.get("ground_contact", ""),
@@ -250,7 +286,7 @@ class FireBotEnv(gym.Env):
             "wall_contact": wall_contact
         }
 
-    def _calculate_reward(self, data, action):
+    def _calculate_reward(self, data, action, stuck: bool = False):
         linear_x = action[0]
         angular_z = action[1]
         wall_contact = data.get("wall_contact", False)
@@ -285,7 +321,19 @@ class FireBotEnv(gym.Env):
         # Penalize high angular velocity to prevent spinning in circles
         angular_penalty = -(angular_z**2) * 0.3
         
-        return vel_reward + survival_reward + angular_penalty
+        # Penalize being stuck (no displacement over the tracking window)
+        stuck_penalty = -5.0 if stuck else 0.0
+        
+        # New room exploration bonus — reward entering a room not yet visited this episode.
+        # staging_area is excluded since that's the spawn zone.
+        new_room_bonus = 0.0
+        ground = data.get("ground_contact", "")
+        if ground and ground != "staging_area" and ground not in self.visited_rooms:
+            self.visited_rooms.add(ground)
+            new_room_bonus = 100.0
+            print(f"[FireBotEnv] NEW ROOM: '{ground}' (+{new_room_bonus}) | Visited: {len(self.visited_rooms)} rooms")
+        
+        return vel_reward + survival_reward + angular_penalty + stuck_penalty + new_room_bonus
 
     def close(self):
         if self.record_data:

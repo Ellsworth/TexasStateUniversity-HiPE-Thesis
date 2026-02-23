@@ -229,8 +229,9 @@ def main():
             agent_name="CQL_Agent",
             record_data=True,
             output_file=online_dataset_path,
+            max_episode_steps=10_000
         )
-        env = PositionHeatmapWrapper(env, save_every=5000, save_dir=log_dir)
+        env = PositionHeatmapWrapper(env, save_every=10_000, save_dir=log_dir)
         env = GridObservationWrapper(env)
         
         if args.n_frames > 1:
@@ -248,8 +249,8 @@ def main():
         # Low epsilon: we trust the pretrained policy and want to refine, not re-explore
         try:
             explorer = d3rlpy.algos.LinearDecayEpsilonGreedy(
-                start_epsilon=0.05,  # Very low: pretrained policy already knows what to do
-                end_epsilon=0.01,
+                start_epsilon=0.10,  # Very low: pretrained policy already knows what to do
+                end_epsilon=0.02,
                 duration=finetune_steps  # Decay slowly over the full run
             )
         except AttributeError:
