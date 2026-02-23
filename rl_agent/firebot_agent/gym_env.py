@@ -84,24 +84,12 @@ class FireBotEnv(gym.Env):
         # 3. Define Observation Space
         # We have:
         # - local_grid: 65x65 int16
-        # - wall_distance: float
-        # - wall_angle: float
         # - wall_contact: float (0.0 or 1.0) — hitting a wall/obstacle
         # ground_contact (string) is passed via the info dict, not the obs space
         self.observation_space = spaces.Dict({
             "local_grid": spaces.Box(
                 low=0, high=255, 
                 shape=(1, 65, 65), dtype=np.uint8
-            ),
-            "wall_distance": spaces.Box(
-                low=np.array([-1.0], dtype=np.float32),
-                high=np.array([100.0], dtype=np.float32), # -1 is no wall
-                dtype=np.float32
-            ),
-            "wall_angle": spaces.Box(
-                low=np.array([-np.pi], dtype=np.float32),
-                high=np.array([np.pi], dtype=np.float32),
-                dtype=np.float32
             ),
             "wall_contact": spaces.Box(
                 low=np.array([0.0], dtype=np.float32),
@@ -236,8 +224,6 @@ class FireBotEnv(gym.Env):
         """Generate random observation for testing."""
         return {
             "local_grid": np.random.randint(0, 255, (1, 65, 65), dtype=np.uint8),
-            "wall_distance": np.array([np.random.uniform(0, 10)], dtype=np.float32),
-            "wall_angle": np.array([np.random.uniform(-np.pi, np.pi)], dtype=np.float32),
             "wall_contact": np.array([0.0], dtype=np.float32)
         }
 
@@ -275,14 +261,10 @@ class FireBotEnv(gym.Env):
         # Add channel dimension: (65, 65) -> (1, 65, 65)
         local_grid = np.expand_dims(processed_grid, axis=0)
 
-        wall_dist = np.array([float(data.get("wall_distance", -1.0))], dtype=np.float32)
-        wall_ang = np.array([float(data.get("wall_angle", 0.0))], dtype=np.float32)
         wall_contact = np.array([1.0 if data.get("wall_contact", False) else 0.0], dtype=np.float32)
 
         return {
             "local_grid": local_grid,
-            "wall_distance": wall_dist,
-            "wall_angle": wall_ang,
             "wall_contact": wall_contact
         }
 

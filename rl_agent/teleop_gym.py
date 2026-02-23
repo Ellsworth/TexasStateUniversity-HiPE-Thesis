@@ -196,17 +196,12 @@ class FireBotTeleop:
                 self.render_grid(obs["local_grid"])
             
             # Render Info Text
-            wall_dist = obs["wall_distance"][0]
-            wall_ang = obs["wall_angle"][0]
-            
             text_x = 50
             text_y_start = OFFSET_Y + (GRID_SIZE * SCALE_FACTOR) + 20
             
             self.draw_text(f"Step: {self.step_count}", text_x, text_y_start)
             self.draw_text(f"Action: {self.action}", text_x, text_y_start + 30)
-            self.draw_text(f"Wall Dist: {wall_dist:.2f} m", text_x, text_y_start + 60)
-            self.draw_text(f"Wall Angle: {wall_ang:.2f} rad", text_x, text_y_start + 90)
-            self.draw_text(f"Reward: {reward:.4f} (Total: {self.total_reward:.2f})", text_x, text_y_start + 120)
+            self.draw_text(f"Reward: {reward:.4f} (Total: {self.total_reward:.2f})", text_x, text_y_start + 60)
             
             pygame.display.flip()
             
