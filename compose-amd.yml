@@ -50,7 +50,7 @@ services:
     command: sh -c "uv sync && uv run teleop_gym.py"
 
   train:
-    image: astral/uv:debian
+    image: docker.io/astral/uv:debian
     # Headless, so no display/X11 needed
     volumes:
       - ./rl_agent:/app

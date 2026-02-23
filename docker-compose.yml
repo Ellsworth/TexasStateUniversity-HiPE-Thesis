@@ -62,7 +62,7 @@ services:
     #command: sh -c "uv sync && uv run train.py --dataset recordings/ --pretrain-checkpoint d3rlpy_logs/cql_pretrained.d3  --pretrain-steps 0 --finetune-steps 1000000"
 
   teleop:
-    image: astral/uv:debian
+    image: docker.io/astral/uv:debian
     volumes:
       - ./rl_agent:/app
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
