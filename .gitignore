@@ -2,6 +2,7 @@
 
 build/
 log/
+old_logs/
 install/
 rl_agent/*.png
 rl_agent/*.zip
