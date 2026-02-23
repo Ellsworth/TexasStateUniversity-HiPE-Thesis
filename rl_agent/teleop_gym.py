@@ -1,9 +1,7 @@
-import gymnasium as gym
 import pygame
 import numpy as np
 import argparse
 import sys
-import time
 import os
 from datetime import datetime
 from firebot_agent.gym_env import FireBotEnv
@@ -25,9 +23,6 @@ OFFSET_Y = 50
 # Colors
 COLOR_BG = (30, 30, 30)
 COLOR_TEXT = (255, 255, 255)
-COLOR_GRID_UNKNOWN = (127, 127, 127)
-COLOR_GRID_FREE = (255, 255, 255)
-COLOR_GRID_OCCUPIED = (0, 0, 0)
 
 class FireBotTeleop:
     def __init__(self, continuous=True, mock=False):
@@ -100,26 +95,9 @@ class FireBotTeleop:
         # Create surface for the grid
         surf = pygame.Surface((GRID_SIZE, GRID_SIZE))
         
-        # Create RGB array
-        # This is a bit slow doing it manually per pixel in python loop, 
-        # but for 65x65 it's instant.
-        # Faster way: use pygame.surfarray
-        
-        rgb_array = np.zeros((GRID_SIZE, GRID_SIZE, 3), dtype=np.uint8)
-        
-        # Map values to colors
-        # 0 -> Free (White)
-        # 127 -> Unknown (Grey)
-        # 255 -> Occupied (Black) -- wait, in env 255 was occupied? 
-        # Let's check env.py: 
-        #   processed_grid[mask_free] = 0
-        #   processed_grid[mask_occupied] = val * 2.55 (so 255 is strong occupied)
-        # Let's invert for display: 255 (occupied) -> Black, 0 (free) -> White
-        
-        # Actually simplest to just display grayscale
-        # If 0 is free (white in occupancy grid logic usually), we want 255 for display
-        # If 255 is occupied (black), we want 0 for display
-        
+        # Map environment grid to display colors (grayscale)
+        # Environment: 0 (Free) -> 0, 127 (Unknown) -> 127, 255 (Occupied) -> 255
+        # Pygame Display: 255 (White) for free, 0 (Black) for occupied
         display_grid = 255 - grid
         
         # Duplicate to 3 channels by stacking
@@ -206,7 +184,7 @@ class FireBotTeleop:
             pygame.display.flip()
             
             # Clock tick
-            self.clock.tick(20) # 20 Hz teleop
+            self.clock.tick(10) # 10 Hz teleop
             
         # If user quit explicitly (Q/ESC), record a terminal step
         if self.user_quit and self.env.record_data:
