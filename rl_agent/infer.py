@@ -8,28 +8,14 @@ import torch
 from firebot_agent.gym_env import FireBotEnv
 from firebot_agent.heatmap_wrapper import PositionHeatmapWrapper
 from firebot_agent.log_master import FireBotLogger
-import gymnasium as gym
+from firebot_agent.training_utils import print_gpu_info, GridObservationWrapper
 from gymnasium.wrappers import FrameStackObservation
-
-
-class GridObservationWrapper(gym.ObservationWrapper):
-    def __init__(self, env):
-        super().__init__(env)
-        shape = env.observation_space["local_grid"].shape
-        self.observation_space = gym.spaces.Box(
-            low=0, high=255,
-            shape=(shape[1], shape[2]),  # (1, 65, 65) -> (65, 65)
-            dtype=np.uint8
-        )
-
-    def observation(self, obs):
-        return obs["local_grid"].squeeze(0)
 
 
 def main():
     parser = argparse.ArgumentParser(description="DiscreteCQL Inference (no training)")
     parser.add_argument("--model", type=str, default="d3rlpy_logs/cql_model.pt",
-                        help="Path to the trained model (.pt file)")
+                        help="Path to the trained model (.d3 file)")
     parser.add_argument("--n-episodes", type=int, default=5,
                         help="Number of episodes to run")
     parser.add_argument("--n-frames", type=int, default=4,
@@ -49,15 +35,7 @@ def main():
     args = parser.parse_args()
 
     # ── GPU info ──────────────────────────────────────────────────────────────
-    print("=" * 60)
-    if torch.cuda.is_available():
-        n_gpus = torch.cuda.device_count()
-        print(f"GPUs available: {n_gpus}")
-        for i in range(n_gpus):
-            print(f"  GPU {i}: {torch.cuda.get_device_name(i)}")
-    else:
-        print("No GPUs available. Using CPU.")
-    print("=" * 60)
+    print_gpu_info()
 
     if not os.path.exists(args.model):
         raise FileNotFoundError(f"Model not found at: {args.model}")
