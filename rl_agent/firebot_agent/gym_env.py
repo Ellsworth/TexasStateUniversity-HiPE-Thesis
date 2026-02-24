@@ -273,27 +273,33 @@ class FireBotEnv(gym.Env):
         angular_z = action[1]
         wall_contact = data.get("wall_contact", False)
         
+        impact_penalty = 0.0
         if wall_contact:
             self.steps_since_contact = 0
             if not self.collision_active:
                 self.collision_active = True
-                return -10.0 # Impact penalty
+                impact_penalty = -10.0 # Impact penalty
         else:
             self.steps_since_contact += 1
             if self.steps_since_contact > 5:
                 self.collision_active = False
                 
-        # If collision is active (sustained or hysteresis), deny all forward reward
-        if self.collision_active:
-            return -1.0
+        # If collision is active (sustained or hysteresis), apply a constant penalty
+        collision_penalty = -1.0 if self.collision_active else 0.0
         
         # Reward forward progress more aggressively
         # Removing the > 0.1 gate so the agent feels the benefit of even slow movement
         
         if linear_x > 0.0: # Going forwards
-            vel_reward = linear_x * 0.5 
-        else: # Going backwards — penalize (linear_x < 0, so this is negative)
-            vel_reward = linear_x * 0.1
+            if self.collision_active:
+                vel_reward = -0.5 * linear_x # Penalize pushing into the wall
+            else:
+                vel_reward = linear_x * 0.5 
+        else: # Going backwards
+            if self.collision_active:
+                vel_reward = -linear_x * 0.2 # Reward backing up out of a collision (linear_x is negative, so this is positive)
+            else:
+                vel_reward = linear_x * 0.1 # Normal backward penalty (negative)
         
         
         # Tie survival to movement: You only get the bonus if you are actually moving
@@ -301,7 +307,8 @@ class FireBotEnv(gym.Env):
         survival_reward = 0.05 if linear_x > 0.05 else -0.05
         
         # Penalize high angular velocity to prevent spinning in circles
-        angular_penalty = -(angular_z**2) * 0.3
+        # Allow turning when in collision to escape
+        angular_penalty = -(angular_z**2) * 0.3 if not self.collision_active else 0.0
         
         # Penalize being stuck (no displacement over the tracking window)
         stuck_penalty = -5.0 if stuck else 0.0
@@ -315,7 +322,7 @@ class FireBotEnv(gym.Env):
             new_room_bonus = 500.0
             print(f"[FireBotEnv] NEW ROOM: '{ground}' (+{new_room_bonus}) | Visited: {len(self.visited_rooms)} rooms")
         
-        return vel_reward + survival_reward + angular_penalty + stuck_penalty + new_room_bonus
+        return vel_reward + survival_reward + angular_penalty + stuck_penalty + impact_penalty + collision_penalty + new_room_bonus
 
     def close(self):
         if self.record_data:
