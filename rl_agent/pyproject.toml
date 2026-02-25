@@ -19,4 +19,5 @@ dependencies = [
     "tensorboardx>=2.6.4",
     "scipy>=1.15.3",
     "setuptools==70.0.0",
+    "xmltodict>=1.0.4",
 ]
