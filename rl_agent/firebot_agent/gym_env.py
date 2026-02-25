@@ -116,10 +116,13 @@ class FireBotEnv(gym.Env):
         # Clear stuck detection history
         self.position_history = []
         
-        # Clear visited rooms for new episode
-        self.visited_rooms = set()
+        # visited_rooms is cleared AFTER we get the reset response below,
+        # so we can pre-populate it with the spawn room.  Clearing it here
+        # causes a race: if the first response still reports the old room,
+        # the very first step fires a false +500 new-room bonus.
         
         if self.mock:
+            self.visited_rooms = set()
             return self._get_mock_observation(), {}
 
         # Send reset command to ZMQ bridge
@@ -133,7 +136,14 @@ class FireBotEnv(gym.Env):
             message = self.socket.recv()
             data = msgpack.unpackb(message)
             
-            return self._process_observation(data), {"ground_contact": data.get("ground_contact", "")}
+            # Seed visited_rooms with wherever the agent actually spawned so
+            # the first step never triggers a false new-room bonus.
+            # ground_contact may be a comma-separated list (agent straddling tiles),
+            # so split and store individual tile names.
+            spawn_ground = data.get("ground_contact", "")
+            self.visited_rooms = {r.strip() for r in spawn_ground.split(",") if r.strip()}
+            
+            return self._process_observation(data), {"ground_contact": spawn_ground}
             
         except zmq.ZMQError as e:
             print(f"ZMQ Error during reset: {e}")
@@ -278,7 +288,7 @@ class FireBotEnv(gym.Env):
             self.steps_since_contact = 0
             if not self.collision_active:
                 self.collision_active = True
-                impact_penalty = -10.0 # Impact penalty
+                impact_penalty = -10.0 # Higher impact penalty to heavily discourage walls
         else:
             self.steps_since_contact += 1
             if self.steps_since_contact > 5:
@@ -297,30 +307,35 @@ class FireBotEnv(gym.Env):
                 vel_reward = linear_x * 0.5 
         else: # Going backwards
             if self.collision_active:
-                vel_reward = -linear_x * 0.2 # Reward backing up out of a collision (linear_x is negative, so this is positive)
+                vel_reward = 0.0 # No longer reward backing up to prevent farming positive rewards
             else:
-                vel_reward = linear_x * 0.1 # Normal backward penalty (negative)
+                vel_reward = linear_x * 0.5 # Normal backward penalty (made much steeper to discourage reversing vs turning)
         
         
-        # Tie survival to movement: You only get the bonus if you are actually moving
-        # This kills the "sit and jitter" strategy
+        # Tie survival to movement: You only get the bonus if you are moving FORWARD
+        # This kills the "sit and jitter" strategy and doesn't explicitly reward spinning in place.
         survival_reward = 0.05 if linear_x > 0.05 else -0.05
         
         # Penalize high angular velocity to prevent spinning in circles
         # Allow turning when in collision to escape
-        angular_penalty = -(angular_z**2) * 0.3 if not self.collision_active else 0.0
+        # Reduced penalty from 0.3 to 0.1 to lower the opportunity cost of turning around
+        angular_penalty = -(angular_z**2) * 0.1 if not self.collision_active else 0.0
         
         # Penalize being stuck (no displacement over the tracking window)
-        stuck_penalty = -5.0 if stuck else 0.0
+        stuck_penalty = -100.0 if stuck else 0.0
         
         # New room exploration bonus — reward entering a room not yet visited this episode.
-        # staging_area is excluded since that's the spawn zone.
+        # ground_contact may be a comma-separated list when straddling tiles, so split it
+        # and reward each individual new tile. staging_area is excluded as the spawn zone.
         new_room_bonus = 0.0
         ground = data.get("ground_contact", "")
-        if ground and ground != "staging_area" and ground not in self.visited_rooms:
-            self.visited_rooms.add(ground)
-            new_room_bonus = 500.0
-            print(f"[FireBotEnv] NEW ROOM: '{ground}' (+{new_room_bonus}) | Visited: {len(self.visited_rooms)} rooms")
+        if ground:
+            tiles = [r.strip() for r in ground.split(",") if r.strip()]
+            for tile in tiles:
+                if tile.startswith("tile_") and tile not in self.visited_rooms:
+                    self.visited_rooms.add(tile)
+                    new_room_bonus += 500.0
+                    print(f"[FireBotEnv] NEW ROOM: '{tile}' (+500.0) | Visited: {len(self.visited_rooms)} rooms")
         
         return vel_reward + survival_reward + angular_penalty + stuck_penalty + impact_penalty + collision_penalty + new_room_bonus
 
