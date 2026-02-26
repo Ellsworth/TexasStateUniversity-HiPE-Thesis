@@ -8,13 +8,7 @@ matplotlib.use('Agg')  # Non-interactive backend for headless servers
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 
-try:
-    from .extract_tiles import extract_tiles
-except ImportError:
-    try:
-        from extract_tiles import extract_tiles
-    except ImportError:
-        extract_tiles = None
+import csv
 
 
 class PositionHeatmapWrapper(gym.Wrapper):
@@ -32,12 +26,20 @@ class PositionHeatmapWrapper(gym.Wrapper):
         self._explicit_save_dir = save_dir
         
         self.tiles = []
-        if extract_tiles is not None:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(os.path.dirname(script_dir))
-            sdf_path = os.path.join(project_root, "ros2_ws", "src", "firebot_rl", "assets", "world-test.sdf")
-            if os.path.exists(sdf_path):
-                self.tiles = extract_tiles(sdf_path)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        csv_path = os.path.join(script_dir, "..", "extracted_tiles.csv")
+        if os.path.exists(csv_path):
+            try:
+                with open(csv_path, 'r', newline='') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        self.tiles.append({
+                            'name': row['name'],
+                            'x': float(row['x']),
+                            'y': float(row['y'])
+                        })
+            except Exception as e:
+                print(f"Failed to read CSV tile map: {e}")
 
 
     def _get_run_dir(self):
@@ -74,19 +76,21 @@ class PositionHeatmapWrapper(gym.Wrapper):
 
         plt.figure()
         plt.imshow(heatmap.T, origin='lower', cmap='hot',
-                   extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]])
+                   extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]], zorder=0)
         
         if self.tiles:
             tile_xs = [t['x'] for t in self.tiles]
             tile_ys = [t['y'] for t in self.tiles]
-            plt.scatter(tile_xs, tile_ys, color='blue', marker='x', s=30, label='Tiles', alpha=0.7)
+            plt.scatter(tile_xs, tile_ys, color='blue', marker='x', s=30, label='Tiles', alpha=0.7, zorder=5)
             
+        # Spawn location
+        plt.scatter(5.0, 30.0, color='lime', marker='*', s=150, edgecolors='black', label='Spawn', zorder=10)
+
         plt.colorbar(label='Visit Density')
         plt.xlabel('X (m)')
         plt.ylabel('Y (m)')
         plt.title(f'Position Heatmap (step {self.step_count})')
-        if self.tiles:
-            plt.legend(loc='upper right', prop={'size': 8})
+        plt.legend(loc='upper right', prop={'size': 8})
         plt.savefig(os.path.join(run_dir, f'heatmap_{self.step_count}.png'), dpi=150)
         plt.close()
         self.positions.clear()
