@@ -57,6 +57,7 @@ def main():
         agent_name="CQL_Infer",
         record_data=args.record_data,
         output_file=output_file,
+        max_episode_steps=10000,
     )
 
     if args.save_heatmap:

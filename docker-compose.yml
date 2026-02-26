@@ -58,8 +58,8 @@ services:
       - label=disable
     network_mode: host
     working_dir: /app
-    command: sh -c "uv sync && uv run train.py --dataset recordings/ --pretrain-steps 500000 --finetune-steps 1000000"
-    #command: sh -c "uv sync && uv run train.py --dataset recordings/ --pretrain-checkpoint d3rlpy_logs/cql_pretrained.d3  --pretrain-steps 0 --finetune-steps 1000000"
+    #command: sh -c "uv sync && uv run train.py --dataset recordings/ --pretrain-steps 500000 --finetune-steps 1000000"
+    command: sh -c "uv sync && uv run cql_finetune.py --dataset recordings/ --checkpoint logs/2026-02-23T18\:45\:50.531775_CQL_Pretrain/cql_pretrained.d3 --finetune-steps 1000000 --mix-ratio 0.5"
 
   teleop:
     image: docker.io/astral/uv:debian

@@ -1,3 +1,4 @@
+import dataclasses
 import numpy as np
 import d3rlpy
 import argparse
@@ -70,6 +71,13 @@ def main():
 
     cql = d3rlpy.load_learnable(args.checkpoint, device=torch.cuda.is_available())
     print(f"Loaded checkpoint from {args.checkpoint}")
+
+    learning_rate = 3e-5
+    cql._config = dataclasses.replace(
+        cql._config,
+        learning_rate=learning_rate
+    )
+    print(f"Learning rate set to {learning_rate}")
 
     evaluators = get_evaluators()
 
