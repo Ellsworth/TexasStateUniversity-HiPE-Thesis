@@ -47,11 +47,14 @@ def extract_tiles(sdf_path):
     return tiles
 
 if __name__ == "__main__":
+    import csv
+    
     # Script is in rl_agent/firebot_agent/, we want to reach ros2_ws/src/firebot_rl/assets/world-test.sdf
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
     
     sdf_path = os.path.join(project_root, "ros2_ws", "src", "firebot_rl", "assets", "world-test.sdf")
+    csv_path = os.path.join("extracted_tiles.csv")
     
     print(f"Reading {sdf_path}...\n")
     
@@ -67,3 +70,10 @@ if __name__ == "__main__":
     print("-" * 55)
     for tile in tiles:
         print(f"{tile['name']:<15} | {tile['x']:>8.2f} | {tile['y']:>8.2f} | {tile['z']:>8.2f}")
+
+    print(f"\nWriting to {csv_path}...")
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['name', 'x', 'y', 'z'])
+        writer.writeheader()
+        writer.writerows(tiles)
+    print("Done!")
