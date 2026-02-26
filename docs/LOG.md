@@ -104,3 +104,18 @@ Looks like the policy collapsed to only moving forward. Once we're in a wall we 
 * Do nothing: -0.05
 * Backwards: -0.55
 * Hit wall: -0.1
+
+## February 26th
+
+### (Updated) Reward Function Summary
+
+| Component | Logic | Impact on Agent |
+| --- | --- | --- |
+| **Wall Impact & Sustained Penalty** | `-20.0` on hit, `-2.0` sustained | Heavy penalty to strongly discourage walls, sustained via hysteresis. |
+| **Velocity Reward** | `linear_x * 1.0` front, reverse penalty unless escaping wall | Moderate reward for forward motion. Reversing to escape a wall gives `+2.0 * abs(linear_x)`, but reversing normally incurs a penalty. |
+| **Survival & Motion Bonus** | `+0.2` if forward (`> 0.05`), `-0.5` if sitting still | Strong penalty for doing nothing to prevent policy collapse into a wall. |
+| **Angular Penalty** | `0.0` | No penalty for turning; encourages exploration when blocked. |
+| **Stuck Penalty** | `-100.0` | Large penalty if agent displacement is low over a 100-step window. |
+| **New Room Bonus** | `+500.0` | Massive reward for discovering an unvisited tile (`tile_*`). |
+
+https://www.reddit.com/r/reinforcementlearning/comments/ogwct6/how_to_deal_with_catastrophic_forgetting/
