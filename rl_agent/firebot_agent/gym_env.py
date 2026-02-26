@@ -45,8 +45,8 @@ class FireBotEnv(gym.Env):
         self.steps_since_contact = 0
         
         # Stuck detection
-        self.stuck_window = 100          # Steps to look back
-        self.stuck_threshold = 0.5     # Meters; total displacement below this = stuck
+        self.stuck_window = 100           # Steps to look back (halved for faster recovery)
+        self.stuck_threshold = 0.3     # Meters; total displacement below this = stuck
         self.position_history = []      # List of (x, y) tuples
         
         # 1. Initialize ZMQ
@@ -288,42 +288,42 @@ class FireBotEnv(gym.Env):
             self.steps_since_contact = 0
             if not self.collision_active:
                 self.collision_active = True
-                impact_penalty = -10.0 # Higher impact penalty to heavily discourage walls
+                impact_penalty = -20.0 # Huge impact penalty to heavily discourage walls
         else:
             self.steps_since_contact += 1
             if self.steps_since_contact > 5:
                 self.collision_active = False
                 
         # If collision is active (sustained or hysteresis), apply a constant penalty
-        collision_penalty = -1.0 if self.collision_active else 0.0
+        collision_penalty = -2.0 if self.collision_active else 0.0
         
         # Reward forward progress more aggressively
-        # Removing the > 0.1 gate so the agent feels the benefit of even slow movement
-        
-        if linear_x > 0.0: # Going forwards
+        if linear_x > 0.0:  # Going forwards
             if self.collision_active:
-                vel_reward = -0.5 * linear_x # Penalize pushing into the wall
+                vel_reward = -5.0 * linear_x  # Heavily penalize pushing into the wall
             else:
-                vel_reward = linear_x * 0.5 
-        else: # Going backwards
+                vel_reward = linear_x * 1.0   # Increased reward multiplier for forward motion
+        else:  # Stationary or going backwards
             if self.collision_active:
-                vel_reward = 0.0 # No longer reward backing up to prevent farming positive rewards
+                vel_reward = 2.0 * abs(linear_x)  # Strong reward for reversing away from wall
             else:
-                vel_reward = linear_x * 0.5 # Normal backward penalty (made much steeper to discourage reversing vs turning)
-        
-        
-        # Tie survival to movement: You only get the bonus if you are moving FORWARD
-        # This kills the "sit and jitter" strategy and doesn't explicitly reward spinning in place.
-        survival_reward = 0.05 if linear_x > 0.05 else -0.05
-        
-        # Penalize high angular velocity to prevent spinning in circles
-        # Allow turning when in collision to escape
-        # Reduced penalty from 0.3 to 0.1 to lower the opportunity cost of turning around
-        angular_penalty = -(angular_z**2) * 0.1 if not self.collision_active else 0.0
-        
+                vel_reward = linear_x * 2.0      # Heavy backward penalty to discourage reverse-loops
+
+        # Tie survival to movement: forward motion = bonus, doing nothing = steep penalty.
+        # The penalty is large enough that sitting still accumulates worse than a wall hit over time.
+        if linear_x > 0.05:
+            survival_reward = 0.2    # Meaningful bonus to incentivize forward motion
+        elif abs(linear_x) < 0.05 and abs(angular_z) < 0.05:
+            survival_reward = -0.5   # Heavy "do nothing" penalty — must exceed collision fear
+        else:
+            survival_reward = -0.05  # Small penalty for other low-speed states
+
+        # Allow turning without additional penalty to encourage exploration when blocked.
+        angular_penalty = 0.0
+
         # Penalize being stuck (no displacement over the tracking window)
         stuck_penalty = -100.0 if stuck else 0.0
-        
+
         # New room exploration bonus — reward entering a room not yet visited this episode.
         # ground_contact may be a comma-separated list when straddling tiles, so split it
         # and reward each individual new tile. staging_area is excluded as the spawn zone.
@@ -336,7 +336,7 @@ class FireBotEnv(gym.Env):
                     self.visited_rooms.add(tile)
                     new_room_bonus += 500.0
                     print(f"[FireBotEnv] NEW ROOM: '{tile}' (+500.0) | Visited: {len(self.visited_rooms)} rooms")
-        
+
         return vel_reward + survival_reward + angular_penalty + stuck_penalty + impact_penalty + collision_penalty + new_room_bonus
 
     def close(self):
