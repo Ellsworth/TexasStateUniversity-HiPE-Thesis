@@ -48,6 +48,7 @@ class MinimalBridge(Node):
         # Pose tracking
         self.agent_x = 0.0
         self.agent_y = 0.0
+        self.agent_z = 0.0
         self.pose_lock = threading.Lock()
 
         # 1. ROS Setup
@@ -111,6 +112,7 @@ class MinimalBridge(Node):
             with self.pose_lock:
                 self.agent_x = msg.poses[0].position.x
                 self.agent_y = msg.poses[0].position.y
+                self.agent_z = msg.poses[0].position.z
 
     def step_simulation(self, steps=1):
         """Step the simulation by N steps"""
@@ -274,6 +276,7 @@ class MinimalBridge(Node):
                 with self.pose_lock:
                     current_agent_x = self.agent_x
                     current_agent_y = self.agent_y
+                    current_agent_z = self.agent_z
 
                 # Send back the actual observation
                 # msgpack_numpy handles the conversion of the NumPy array automatically
@@ -283,7 +286,8 @@ class MinimalBridge(Node):
                     "wall_contact": current_wall_contact,
                     "ground_contact": current_ground_contact,
                     "agent_x": current_agent_x,
-                    "agent_y": current_agent_y
+                    "agent_y": current_agent_y,
+                    "agent_z": current_agent_z
                 }
                 self.zmq_socket.send(msgpack.packb(reply))
 

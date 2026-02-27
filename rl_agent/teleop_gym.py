@@ -180,6 +180,10 @@ class FireBotTeleop:
             self.draw_text(f"Step: {self.step_count}", text_x, text_y_start)
             self.draw_text(f"Action: {self.action}", text_x, text_y_start + 30)
             self.draw_text(f"Reward: {reward:.4f} (Total: {self.total_reward:.2f})", text_x, text_y_start + 60)
+            ax = info.get("agent_x", 0.0)
+            ay = info.get("agent_y", 0.0)
+            az = info.get("agent_z", 0.0)
+            self.draw_text(f"Pos: [{ax:.2f}, {ay:.2f}, {az:.2f}]", text_x, text_y_start + 90)
             
             pygame.display.flip()
             

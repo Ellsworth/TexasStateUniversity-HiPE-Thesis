@@ -4,6 +4,8 @@ import zmq
 import numpy as np
 import msgpack
 import msgpack_numpy as m
+import csv
+import os
 from .offline_dataset_recorder import OfflineDataCollector
 
 # Patch msgpack to automatically handle numpy arrays
@@ -48,6 +50,10 @@ class FireBotEnv(gym.Env):
         self.stuck_window = 100           # Steps to look back (halved for faster recovery)
         self.stuck_threshold = 0.3     # Meters; total displacement below this = stuck
         self.position_history = []      # List of (x, y) tuples
+
+        # Breadcrumb reward system
+        self.breadcrumbs = self._load_breadcrumbs()
+        self.claimed_breadcrumbs = set()
         
         # 1. Initialize ZMQ
         if not self.mock:
@@ -115,6 +121,9 @@ class FireBotEnv(gym.Env):
         
         # Clear stuck detection history
         self.position_history = []
+
+        # Reset breadcrumb claims so they can be collected again
+        self.claimed_breadcrumbs = set()
         
         # visited_rooms is cleared AFTER we get the reset response below,
         # so we can pre-populate it with the spawn room.  Clearing it here
@@ -222,6 +231,7 @@ class FireBotEnv(gym.Env):
                 "wall_contact": bool(data.get("wall_contact", False)),
                 "agent_x": float(data.get("agent_x", 0.0)),
                 "agent_y": float(data.get("agent_y", 0.0)),
+                "agent_z": float(data.get("agent_z", 0.0)),
             }
 
         # Record step if enabled
@@ -277,6 +287,28 @@ class FireBotEnv(gym.Env):
             "local_grid": local_grid,
             "wall_contact": wall_contact
         }
+
+    def _load_breadcrumbs(self):
+        """Load breadcrumb waypoints from breadcrumbs.csv in the rl_agent directory."""
+        csv_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "breadcrumbs.csv"
+        )
+        breadcrumbs = []
+        if not os.path.exists(csv_path):
+            print(f"[FireBotEnv] WARNING: breadcrumbs.csv not found at {csv_path}")
+            return breadcrumbs
+        with open(csv_path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                breadcrumbs.append({
+                    "x": float(row["x"]),
+                    "y": float(row["y"]),
+                    "z": float(row["z"]),
+                    "size": float(row["size"]),
+                })
+        print(f"[FireBotEnv] Loaded {len(breadcrumbs)} breadcrumbs from {csv_path}")
+        return breadcrumbs
 
     def _calculate_reward(self, data, action, stuck: bool = False):
         linear_x = action[0]
@@ -337,7 +369,26 @@ class FireBotEnv(gym.Env):
                     new_room_bonus += 500.0
                     print(f"[FireBotEnv] NEW ROOM: '{tile}' (+500.0) | Visited: {len(self.visited_rooms)} rooms")
 
-        return vel_reward + survival_reward + angular_penalty + stuck_penalty + impact_penalty + collision_penalty + new_room_bonus
+        # Breadcrumb reward — one-time reward for touching each breadcrumb waypoint.
+        breadcrumb_reward = 0.0
+        agent_x = float(data.get("agent_x", 0.0))
+        agent_y = float(data.get("agent_y", 0.0))
+        agent_z = float(data.get("agent_z", 0.0))
+        for idx, bc in enumerate(self.breadcrumbs):
+            if idx in self.claimed_breadcrumbs:
+                continue
+            dist = np.sqrt(
+                (agent_x - bc["x"]) ** 2 +
+                (agent_y - bc["y"]) ** 2 +
+                (agent_z - bc["z"]) ** 2
+            )
+            if dist <= bc["size"]:
+                self.claimed_breadcrumbs.add(idx)
+                breadcrumb_reward += 50.0
+                print(f"[FireBotEnv] BREADCRUMB {idx} claimed (+50.0) at ({bc['x']}, {bc['y']}, {bc['z']}) | "
+                      f"Claimed: {len(self.claimed_breadcrumbs)}/{len(self.breadcrumbs)}")
+
+        return vel_reward + survival_reward + angular_penalty + stuck_penalty + impact_penalty + collision_penalty + new_room_bonus + breadcrumb_reward
 
     def close(self):
         if self.record_data:
