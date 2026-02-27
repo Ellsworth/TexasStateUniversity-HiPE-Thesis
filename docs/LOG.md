@@ -105,7 +105,7 @@ Looks like the policy collapsed to only moving forward. Once we're in a wall we 
 * Backwards: -0.55
 * Hit wall: -0.1
 
-## February 26th
+## February 25th
 
 ### (Updated) Reward Function Summary
 
@@ -119,3 +119,9 @@ Looks like the policy collapsed to only moving forward. Once we're in a wall we 
 | **New Room Bonus** | `+500.0` | Massive reward for discovering an unvisited tile (`tile_*`). |
 
 https://www.reddit.com/r/reinforcementlearning/comments/ogwct6/how_to_deal_with_catastrophic_forgetting/
+
+## February 26th
+
+* Overcomp. the range of rewards -> go big
+* Small breadcrumb rewards down the hallways
+* Pie chart of reward/penalty source?
