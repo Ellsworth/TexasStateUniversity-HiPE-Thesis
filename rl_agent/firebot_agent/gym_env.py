@@ -315,36 +315,28 @@ class FireBotEnv(gym.Env):
         angular_z = action[1]
         wall_contact = data.get("wall_contact", False)
         
-        impact_penalty = 0.0
         if wall_contact:
             self.steps_since_contact = 0
             if not self.collision_active:
                 self.collision_active = True
-                impact_penalty = -20.0 # Huge impact penalty to heavily discourage walls
         else:
             self.steps_since_contact += 1
             if self.steps_since_contact > 5:
                 self.collision_active = False
                 
         # If collision is active (sustained or hysteresis), apply a constant penalty
-        collision_penalty = -2.0 if self.collision_active else 0.0
+        collision_penalty = -10.0 if self.collision_active else 0.0
         
         # Reward forward progress more aggressively
         if linear_x > 0.0:  # Going forwards
-            if self.collision_active:
-                vel_reward = -5.0 * linear_x  # Heavily penalize pushing into the wall
-            else:
-                vel_reward = linear_x * 1.0   # Increased reward multiplier for forward motion
+            vel_reward = linear_x * 1.0   # Increased reward multiplier for forward motion
         else:  # Stationary or going backwards
-            if self.collision_active:
-                vel_reward = 2.0 * abs(linear_x)  # Strong reward for reversing away from wall
-            else:
-                vel_reward = linear_x * 2.0      # Heavy backward penalty to discourage reverse-loops
+            vel_reward = linear_x * 2.0      # Heavy backward penalty to discourage reverse-loops
 
         # Tie survival to movement: forward motion = bonus, doing nothing = steep penalty.
         # The penalty is large enough that sitting still accumulates worse than a wall hit over time.
         if linear_x > 0.05:
-            survival_reward = 0.2    # Meaningful bonus to incentivize forward motion
+            survival_reward = 0.1    # Meaningful bonus to incentivize forward motion
         elif abs(linear_x) < 0.05 and abs(angular_z) < 0.05:
             survival_reward = -0.5   # Heavy "do nothing" penalty — must exceed collision fear
         else:
@@ -388,7 +380,7 @@ class FireBotEnv(gym.Env):
                 print(f"[FireBotEnv] BREADCRUMB {idx} claimed (+50.0) at ({bc['x']}, {bc['y']}, {bc['z']}) | "
                       f"Claimed: {len(self.claimed_breadcrumbs)}/{len(self.breadcrumbs)}")
 
-        return vel_reward + survival_reward + angular_penalty + stuck_penalty + impact_penalty + collision_penalty + new_room_bonus + breadcrumb_reward
+        return vel_reward + survival_reward + angular_penalty + stuck_penalty + collision_penalty + new_room_bonus + breadcrumb_reward
 
     def close(self):
         if self.record_data:
