@@ -46,10 +46,12 @@ class FireBotEnv(gym.Env):
         self.collision_active = False
         self.steps_since_contact = 0
         
-        # Stuck detection
-        self.stuck_window = 100           # Steps to look back (halved for faster recovery)
-        self.stuck_threshold = 0.3     # Meters; total displacement below this = stuck
-        self.position_history = []      # List of (x, y) tuples
+        # Two-tier stuck detection
+        self.soft_stuck_window = 50     # Steps to look back for soft-stuck check
+        self.hard_stuck_limit = 150    # Consecutive soft-stuck steps before hard-stuck termination
+        self.stuck_threshold = 0.3     # Meters; displacement below this = stuck
+        self.position_history = []     # List of (x, y) tuples
+        self.steps_stuck = 0           # Consecutive steps the agent has been soft-stuck
 
         # Breadcrumb reward system
         self.breadcrumbs = self._load_breadcrumbs()
@@ -121,6 +123,7 @@ class FireBotEnv(gym.Env):
         
         # Clear stuck detection history
         self.position_history = []
+        self.steps_stuck = 0
 
         # Reset breadcrumb claims so they can be collected again
         self.claimed_breadcrumbs = set()
@@ -190,31 +193,31 @@ class FireBotEnv(gym.Env):
             
             observation = self._process_observation(data)
             
-            # --- Stuck detection ---
+            # --- Two-tier stuck detection ---
             agent_x = float(data.get("agent_x", 0.0))
             agent_y = float(data.get("agent_y", 0.0))
             self.position_history.append((agent_x, agent_y))
-            stuck = False
-            if len(self.position_history) >= self.stuck_window:
-                self.position_history = self.position_history[-self.stuck_window:]
+            soft_stuck = False
+            hard_stuck = False
+            if len(self.position_history) >= self.soft_stuck_window:
+                self.position_history = self.position_history[-self.soft_stuck_window:]
                 oldest_x, oldest_y = self.position_history[0]
                 displacement = np.sqrt((agent_x - oldest_x)**2 + (agent_y - oldest_y)**2)
                 if displacement < self.stuck_threshold:
-                    stuck = True
-                    print(f"[FireBotEnv] Agent stuck (displacement={displacement:.3f}m over {self.stuck_window} steps). Resetting simulation.")
-                    # Proactively reset the simulation NOW so we don't wait for the
-                    # training loop to call env.reset() — and so subsequent steps
-                    # don't repeatedly fire the stuck flag.
-                    reset_payload = {"reset": True, "command": "step"}
-                    self.socket.send(msgpack.packb(reset_payload))
-                    self.socket.recv()  # Drain the response
-                    # Clear all episode state so env.reset() is a no-op on ZMQ
-                    self.position_history = []
-                    self.current_step = 0
-                    self.collision_active = False
-                    self.steps_since_contact = 0
+                    self.steps_stuck += 1
+                    soft_stuck = True
+                    if self.steps_stuck >= self.hard_stuck_limit:
+                        hard_stuck = True
+                        print(f"[FireBotEnv] HARD STUCK (displacement={displacement:.3f}m, "
+                              f"stuck for {self.steps_stuck} steps). Terminating episode.")
+                    elif self.steps_stuck % 25 == 0:
+                        print(f"[FireBotEnv] Soft stuck (displacement={displacement:.3f}m, "
+                              f"stuck for {self.steps_stuck} steps, "
+                              f"penalty={-0.5 * self.steps_stuck:.1f})")
+                else:
+                    self.steps_stuck = 0
             
-            reward = self._calculate_reward(data, cmd_vel, stuck=stuck)
+            reward = self._calculate_reward(data, cmd_vel, soft_stuck=soft_stuck, hard_stuck=hard_stuck)
             
             # Update state needed for next step
             if not isinstance(cmd_vel, np.ndarray):
@@ -224,7 +227,7 @@ class FireBotEnv(gym.Env):
             self.last_action = cmd_vel.copy()
             self.current_step += 1
             
-            terminated = stuck  # End episode if agent is stuck
+            terminated = hard_stuck  # Only terminate on hard stuck (truly wedged)
             truncated = self.current_step >= self.max_episode_steps
             info = {
                 "ground_contact": data.get("ground_contact", ""),
@@ -310,7 +313,7 @@ class FireBotEnv(gym.Env):
         print(f"[FireBotEnv] Loaded {len(breadcrumbs)} breadcrumbs from {csv_path}")
         return breadcrumbs
 
-    def _calculate_reward(self, data, action, stuck: bool = False):
+    def _calculate_reward(self, data, action, soft_stuck: bool = False, hard_stuck: bool = False):
         linear_x = action[0]
         angular_z = action[1]
         wall_contact = data.get("wall_contact", False)
@@ -327,16 +330,24 @@ class FireBotEnv(gym.Env):
         # If collision is active (sustained or hysteresis), apply a constant penalty
         collision_penalty = -10.0 if self.collision_active else 0.0
         
-        # Reward forward progress more aggressively
-        if linear_x > 0.0:  # Going forwards
-            vel_reward = linear_x * 1.0   # Increased reward multiplier for forward motion
-        else:  # Stationary or going backwards
-            vel_reward = linear_x * 2.0      # Heavy backward penalty to discourage reverse-loops
+        # Prevent the agent from accumulating forward-motion rewards when pushing into a wall
+        if self.collision_active:
+            if linear_x > 0.0:
+                # Penalize driving forward while hitting a wall to prevent "pushing" into it
+                vel_reward = linear_x * -1.0
+            else:
+                # Zero out backward penalty to allow escaping walls freely!
+                vel_reward = 0.0
+        else:
+            if linear_x > 0.0:  # Going forwards
+                vel_reward = linear_x * 1.0   # Increased reward multiplier for forward motion
+            else:  # Stationary or going backwards
+                vel_reward = linear_x * 2.0   # Heavy backward penalty to discourage reverse-loops
 
         # Tie survival to movement: forward motion = bonus, doing nothing = steep penalty.
         # The penalty is large enough that sitting still accumulates worse than a wall hit over time.
-        if linear_x > 0.05:
-            survival_reward = 0.1    # Meaningful bonus to incentivize forward motion
+        if linear_x > 0.05 and not self.collision_active:
+            survival_reward = 0.1    # Meaningful bonus to incentivize forward motion (only if not blocked!)
         elif abs(linear_x) < 0.05 and abs(angular_z) < 0.05:
             survival_reward = -0.5   # Heavy "do nothing" penalty — must exceed collision fear
         else:
@@ -345,8 +356,14 @@ class FireBotEnv(gym.Env):
         # Allow turning without additional penalty to encourage exploration when blocked.
         angular_penalty = 0.0
 
-        # Penalize being stuck (no displacement over the tracking window)
-        stuck_penalty = -100.0 if stuck else 0.0
+        # Two-tier stuck penalty: escalating pressure for soft stuck,
+        # large one-time penalty for hard stuck (episode will terminate)
+        if hard_stuck:
+            stuck_penalty = -100.0
+        elif soft_stuck:
+            stuck_penalty = -0.5 * self.steps_stuck   # Escalates: -0.5, -1.0, -1.5, ...
+        else:
+            stuck_penalty = 0.0
 
         # New room exploration bonus — reward entering a room not yet visited this episode.
         # ground_contact may be a comma-separated list when straddling tiles, so split it
