@@ -53,6 +53,10 @@ class FireBotEnv(gym.Env):
         self.position_history = []     # List of (x, y) tuples
         self.steps_stuck = 0           # Consecutive steps the agent has been soft-stuck
 
+        # Spatial exploration grid (2m x 2m cells)
+        self.cell_size = 2.0           # Meters per grid cell
+        self.visited_cells = set()     # Set of (cell_x, cell_y) tuples
+
         # Breadcrumb reward system
         self.breadcrumbs = self._load_breadcrumbs()
         self.claimed_breadcrumbs = set()
@@ -124,6 +128,9 @@ class FireBotEnv(gym.Env):
         # Clear stuck detection history
         self.position_history = []
         self.steps_stuck = 0
+
+        # Reset exploration grid
+        self.visited_cells = set()
 
         # Reset breadcrumb claims so they can be collected again
         self.claimed_breadcrumbs = set()
@@ -314,8 +321,6 @@ class FireBotEnv(gym.Env):
         return breadcrumbs
 
     def _calculate_reward(self, data, action, soft_stuck: bool = False, hard_stuck: bool = False):
-        linear_x = action[0]
-        angular_z = action[1]
         wall_contact = data.get("wall_contact", False)
         
         if wall_contact:
@@ -327,47 +332,30 @@ class FireBotEnv(gym.Env):
             if self.steps_since_contact > 5:
                 self.collision_active = False
                 
-        # If collision is active (sustained or hysteresis), apply a constant penalty
-        collision_penalty = -10.0 if self.collision_active else 0.0
-        
-        # Prevent the agent from accumulating forward-motion rewards when pushing into a wall
-        if self.collision_active:
-            if linear_x > 0.0:
-                # Penalize driving forward while hitting a wall to prevent "pushing" into it
-                vel_reward = linear_x * -1.0
-            else:
-                # Zero out backward penalty to allow escaping walls freely!
-                vel_reward = 0.0
-        else:
-            if linear_x > 0.0:  # Going forwards
-                vel_reward = linear_x * 1.0   # Increased reward multiplier for forward motion
-            else:  # Stationary or going backwards
-                vel_reward = linear_x * 2.0   # Heavy backward penalty to discourage reverse-loops
+        # --- SCALED PENALTIES ---
+        # Reduced from -10.0 to -1.0 to keep it in line with exploration gains
+        collision_penalty = -1.0 if self.collision_active else 0.0
 
-        # Tie survival to movement: forward motion = bonus, doing nothing = steep penalty.
-        # The penalty is large enough that sitting still accumulates worse than a wall hit over time.
-        if linear_x > 0.05 and not self.collision_active:
-            survival_reward = 0.1    # Meaningful bonus to incentivize forward motion (only if not blocked!)
-        elif abs(linear_x) < 0.05 and abs(angular_z) < 0.05:
-            survival_reward = -0.5   # Heavy "do nothing" penalty — must exceed collision fear
-        else:
-            survival_reward = -0.05  # Small penalty for other low-speed states
+        # Constant pressure to move
+        time_penalty = -0.1
 
-        # Allow turning without additional penalty to encourage exploration when blocked.
-        angular_penalty = 0.0
-
-        # Two-tier stuck penalty: escalating pressure for soft stuck,
-        # large one-time penalty for hard stuck (episode will terminate)
         if hard_stuck:
-            stuck_penalty = -100.0
+            stuck_penalty = -5.0  # Reduced from -100.0 (prevents gradient explosion)
         elif soft_stuck:
-            stuck_penalty = -0.5 * self.steps_stuck   # Escalates: -0.5, -1.0, -1.5, ...
+            stuck_penalty = -0.1 * self.steps_stuck # Smoother escalation
         else:
             stuck_penalty = 0.0
 
-        # New room exploration bonus — reward entering a room not yet visited this episode.
-        # ground_contact may be a comma-separated list when straddling tiles, so split it
-        # and reward each individual new tile. staging_area is excluded as the spawn zone.
+        # --- SCALED REWARDS ---
+        agent_x = float(data.get("agent_x", 0.0))
+        agent_y = float(data.get("agent_y", 0.0))
+        cell = (int(agent_x // self.cell_size), int(agent_y // self.cell_size))
+        
+        exploration_reward = 0.0
+        if cell not in self.visited_cells:
+            self.visited_cells.add(cell)
+            exploration_reward = 0.5 # Reduced from 5.0
+
         new_room_bonus = 0.0
         ground = data.get("ground_contact", "")
         if ground:
@@ -375,30 +363,21 @@ class FireBotEnv(gym.Env):
             for tile in tiles:
                 if tile.startswith("tile_") and tile not in self.visited_rooms:
                     self.visited_rooms.add(tile)
-                    new_room_bonus += 500.0
-                    print(f"[FireBotEnv] NEW ROOM: '{tile}' (+500.0) | Visited: {len(self.visited_rooms)} rooms")
+                    # Reduced from 500.0 to 10.0. 
+                    # This is still 100x the time penalty, making it the "primary goal."
+                    new_room_bonus += 10.0 
 
-        # Breadcrumb reward — one-time reward for touching each breadcrumb waypoint.
         breadcrumb_reward = 0.0
-        agent_x = float(data.get("agent_x", 0.0))
-        agent_y = float(data.get("agent_y", 0.0))
-        agent_z = float(data.get("agent_z", 0.0))
         for idx, bc in enumerate(self.breadcrumbs):
-            if idx in self.claimed_breadcrumbs:
-                continue
-            dist = np.sqrt(
-                (agent_x - bc["x"]) ** 2 +
-                (agent_y - bc["y"]) ** 2 +
-                (agent_z - bc["z"]) ** 2
-            )
+            if idx in self.claimed_breadcrumbs: continue
+            dist = np.sqrt((agent_x - bc["x"])**2 + (agent_y - bc["y"])**2)
             if dist <= bc["size"]:
                 self.claimed_breadcrumbs.add(idx)
-                breadcrumb_reward += 50.0
-                print(f"[FireBotEnv] BREADCRUMB {idx} claimed (+50.0) at ({bc['x']}, {bc['y']}, {bc['z']}) | "
-                      f"Claimed: {len(self.claimed_breadcrumbs)}/{len(self.breadcrumbs)}")
+                breadcrumb_reward += 2.0 # Reduced from 50.0
 
-        return vel_reward + survival_reward + angular_penalty + stuck_penalty + collision_penalty + new_room_bonus + breadcrumb_reward
-
+        return (time_penalty + exploration_reward + stuck_penalty + 
+                collision_penalty + new_room_bonus + breadcrumb_reward)
+    
     def close(self):
         if self.record_data:
             self.collector.save(self.output_file)

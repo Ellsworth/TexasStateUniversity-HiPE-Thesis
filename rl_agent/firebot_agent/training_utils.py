@@ -89,10 +89,17 @@ def create_cql(device=None):
 
     return d3rlpy.algos.DiscreteCQLConfig(
         learning_rate=3e-4,
-        batch_size=64,
+        batch_size=256,
         target_update_interval=100,
-        alpha=1.0,  # CQL regularization weight
-        observation_scaler=d3rlpy.preprocessing.PixelObservationScaler(),  # scale 0-255 -> 0-1
+        gamma=0.99,
+
+        # --- Automatic Alpha Tuning ---
+        alpha_threshold=1.0,         # Enable auto-tuning with this threshold
+        initial_alpha=1.0,           # Starting value for alpha
+
+        # Preprocessing
+        observation_scaler=d3rlpy.preprocessing.PixelObservationScaler(),
+        reward_scaler=d3rlpy.preprocessing.StandardRewardScaler(),
     ).create(device=device)
 
 

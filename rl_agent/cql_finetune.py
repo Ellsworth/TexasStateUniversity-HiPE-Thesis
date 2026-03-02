@@ -134,8 +134,8 @@ def main():
     # ── Explorer ────────────────────────────────────────────────────────────
     try:
         explorer = d3rlpy.algos.LinearDecayEpsilonGreedy(
-            start_epsilon=0.10,
-            end_epsilon=0.02,
+            start_epsilon=0.30,
+            end_epsilon=0.05,
             duration=args.finetune_steps
         )
     except AttributeError:
