@@ -12,6 +12,7 @@ from d3rlpy.logging import TensorboardAdapterFactory
 from firebot_agent.utils import convert_continuous_to_discrete
 from firebot_agent.gym_env import FireBotEnv
 from firebot_agent.heatmap_wrapper import PositionHeatmapWrapper
+from firebot_agent.reward_tracker_wrapper import RewardTrackerWrapper
 from firebot_agent.log_master import FireBotLogger
 from firebot_agent.training_utils import (
     print_gpu_info,
@@ -58,6 +59,7 @@ def main():
         max_episode_steps=10_000
     )
     env = PositionHeatmapWrapper(env, save_every=10_000, save_dir=log_dir)
+    env = RewardTrackerWrapper(env, log_dir=log_dir)
     env = GridObservationWrapper(env)
 
     if args.n_frames > 1:
