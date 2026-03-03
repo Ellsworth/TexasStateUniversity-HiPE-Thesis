@@ -99,7 +99,7 @@ def create_cql(device=None):
 
         # Preprocessing
         observation_scaler=d3rlpy.preprocessing.PixelObservationScaler(),
-        reward_scaler=d3rlpy.preprocessing.MinMaxRewardScaler(),
+        reward_scaler=d3rlpy.preprocessing.StandardRewardScaler(),
     ).create(device=device)
 
 

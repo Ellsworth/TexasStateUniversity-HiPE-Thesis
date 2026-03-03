@@ -47,7 +47,7 @@ class FireBotEnv(gym.Env):
         self.steps_since_contact = 0
         
         # Two-tier stuck detection
-        self.soft_stuck_window = 20     # Steps to look back for soft-stuck check
+        self.soft_stuck_window = 50     # Steps to look back for soft-stuck check
         self.hard_stuck_limit = 150    # Consecutive soft-stuck steps before hard-stuck termination
         self.stuck_threshold = 0.3     # Meters; displacement below this = stuck
         self.position_history = []     # List of (x, y) tuples
@@ -329,12 +329,12 @@ class FireBotEnv(gym.Env):
                 self.collision_active = True
         else:
             self.steps_since_contact += 1
-            if self.steps_since_contact > 2:
+            if self.steps_since_contact > 5:
                 self.collision_active = False
                 
         # --- SCALED PENALTIES ---
-        # Reduced from -10.0
-        collision_penalty = -0.5 if self.collision_active else 0.0
+        # Reduced from -10.0 to -1.0 to keep it in line with exploration gains
+        collision_penalty = -1.0 if self.collision_active else 0.0
 
         # Constant pressure to move
         time_penalty = -0.1
@@ -373,25 +373,10 @@ class FireBotEnv(gym.Env):
             dist = np.sqrt((agent_x - bc["x"])**2 + (agent_y - bc["y"])**2)
             if dist <= bc["size"]:
                 self.claimed_breadcrumbs.add(idx)
-                breadcrumb_reward += 2.0
-
-        # Forward velocity reward: offset time_penalty when moving
-        linear_vel = float(action[0]) if not isinstance(action, (int, float)) else 0.0
-        forward_reward = 0.1 * max(linear_vel, 0.0)
-
-        # Wall proximity penalty: continuous gradient away from walls/corners
-        local_grid = data.get("observation", np.zeros((65, 65), dtype=np.int16))
-        if isinstance(local_grid, np.ndarray) and local_grid.shape == (65, 65):
-            center = 32
-            region = local_grid[center-5:center+5, center-5:center+5]
-            occupied_fraction = np.count_nonzero(region > 0) / region.size
-        else:
-            occupied_fraction = 0.0
-        wall_proximity_penalty = -0.2 * occupied_fraction
+                breadcrumb_reward += 2.0 # Reduced from 50.0
 
         return (time_penalty + exploration_reward + stuck_penalty + 
-                collision_penalty + new_room_bonus + breadcrumb_reward +
-                forward_reward + wall_proximity_penalty)
+                collision_penalty + new_room_bonus + breadcrumb_reward)
     
     def close(self):
         if self.record_data:
