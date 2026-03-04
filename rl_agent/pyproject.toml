@@ -20,4 +20,5 @@ dependencies = [
     "scipy>=1.15.3",
     "setuptools==70.0.0",
     "xmltodict>=1.0.4",
+    "ollama>=0.6.1",
 ]

@@ -141,7 +141,7 @@ class FireBotEnv(gym.Env):
         
         if self.mock:
             self.visited_rooms = set()
-            return self._get_mock_observation(), {}
+            return self._get_mock_observation(), {"image": []}
 
         # Send reset command to ZMQ bridge
         try:
@@ -154,7 +154,12 @@ class FireBotEnv(gym.Env):
             spawn_ground = data.get("ground_contact", "")
             self.visited_rooms = {r.strip() for r in spawn_ground.split(",") if r.strip()}
             
-            return self._process_observation(data), {"ground_contact": spawn_ground}
+            info = {
+                "ground_contact": spawn_ground,
+                "image": data.get("image", [])
+            }
+            
+            return self._process_observation(data), info
             
         except Exception as e:
             print(f"Error during reset: {e}")
@@ -177,7 +182,7 @@ class FireBotEnv(gym.Env):
             truncated = self.current_step >= self.max_episode_steps
             observation = self._get_mock_observation()
             reward = 0.0
-            info = {}
+            info = {"image": []}
         else:
             data = self.client.step(cmd_vel=cmd_vel, steps=100, reset=False)
             
@@ -225,6 +230,7 @@ class FireBotEnv(gym.Env):
                 "agent_x": float(data.get("agent_x", 0.0)),
                 "agent_y": float(data.get("agent_y", 0.0)),
                 "agent_z": float(data.get("agent_z", 0.0)),
+                "image": data.get("image", [])
             }
 
         # Record step if enabled
