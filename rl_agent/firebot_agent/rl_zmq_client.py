@@ -53,3 +53,22 @@ class RLZmqClient:
             logging.error(f"ZMQ Error: {e}. Reconnecting...")
             self._connect()
             return {}
+
+if __name__ == "__main__":
+    import numpy as np
+    import time
+    
+    logging.basicConfig(level=logging.INFO)
+    
+    print("Initializing RL ZMQ Client...")
+    client = RLZmqClient()
+    
+    # Example command: drive forward
+    cmd = np.array([0.5, 0.0], dtype=np.float32)
+    
+    print("Sending step command...")
+    response = client.step(cmd_vel=cmd, steps=10, reset=False)
+
+    print("Response: ", response["image"].shape)
+    
+    print("Test complete.")
