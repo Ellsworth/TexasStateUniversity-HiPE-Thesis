@@ -1,6 +1,8 @@
 import d3rlpy
 import argparse
 import os
+import json
+import torch
 
 from d3rlpy.logging import TensorboardAdapterFactory
 
@@ -9,9 +11,46 @@ from firebot_agent.log_master import FireBotLogger
 from firebot_agent.training_utils import (
     print_gpu_info,
     load_dataset,
-    create_cql,
     get_evaluators,
 )
+
+def create_cql(device=None):
+    """Create a DiscreteCQL algorithm with standard hyperparameters.
+
+    Args:
+        device: Device to use. If None, auto-detects CUDA.
+
+    Returns:
+        tuple: A DiscreteCQL instance and a dictionary of hyperparameters.
+    """
+    if device is None:
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+    hyperparams = {
+        "learning_rate": 3e-4,
+        "batch_size": 256,
+        "target_update_interval": 500,
+        "gamma": 0.99,
+        "alpha_threshold": 0.1,
+        "initial_alpha": 0.1,
+    }
+
+    cql = d3rlpy.algos.DiscreteCQLConfig(
+        learning_rate=hyperparams["learning_rate"],
+        batch_size=hyperparams["batch_size"],
+        target_update_interval=hyperparams["target_update_interval"], # Increased for stability
+        gamma=hyperparams["gamma"],
+
+        # --- Loosening the Pessimism ---
+        alpha_threshold=hyperparams["alpha_threshold"],        # Much lower threshold to prevent paralysis
+        initial_alpha=hyperparams["initial_alpha"],          # Start with less penalty
+        
+        # Preprocessing
+        observation_scaler=d3rlpy.preprocessing.PixelObservationScaler(),
+        reward_scaler=d3rlpy.preprocessing.MinMaxRewardScaler(),
+    ).create(device=device)
+    
+    return cql, hyperparams
 
 
 def main():
@@ -31,7 +70,14 @@ def main():
 
     print_gpu_info()
 
-    cql = create_cql()
+    cql, hyperparams = create_cql()
+    hyperparams["pretrain_steps"] = args.pretrain_steps
+    hyperparams["n_frames"] = args.n_frames
+    hyperparams["dataset"] = args.dataset
+
+    with open(os.path.join(log_dir, "hyperparameters.json"), "w") as f:
+        json.dump(hyperparams, f, indent=4)
+
     evaluators = get_evaluators()
 
     # Load dataset
