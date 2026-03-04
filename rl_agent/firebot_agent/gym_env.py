@@ -337,7 +337,7 @@ class FireBotEnv(gym.Env):
         collision_penalty = -1.0 if self.collision_active else 0.0
 
         # Constant pressure to move
-        time_penalty = -0.1
+        time_penalty = -0.01
 
         if hard_stuck:
             stuck_penalty = -5.0  # Reduced from -100.0 (prevents gradient explosion)
