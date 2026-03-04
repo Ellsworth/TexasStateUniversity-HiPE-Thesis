@@ -7,15 +7,16 @@ import msgpack_numpy as m
 import csv
 import os
 from .offline_dataset_recorder import OfflineDataCollector
+from .rl_zmq_client import RLZmqClient
 
 # Patch msgpack to automatically handle numpy arrays
 m.patch()
 
 # Discrete Action Map: [linear_x, angular_z]
 DISCRETE_ACTION_MAP = {
-    0: [0.0, 0.0],
-    1: [1.0, 0.0],
-    2: [-1.0, 0.0],
+    0: [0.0, 0.0],   # Stop
+    1: [1.0, 0.0],   # Forward
+    2: [-1.0, 0.0],  # Backward
     3: [0.0, 1.0],   # Spin Left
     4: [0.0, -1.0],  # Spin Right
     5: [0.5, 0.5],   # Curve Left
@@ -63,9 +64,7 @@ class FireBotEnv(gym.Env):
         
         # 1. Initialize ZMQ
         if not self.mock:
-            self.context = zmq.Context()
-            self.socket = self.context.socket(zmq.REQ)
-            self.socket.connect(f"tcp://{ip}:{port}")
+            self.client = RLZmqClient(ip=ip, port=port)
         else:
             print("Running in MOCK mode. No ZMQ connection.")
         
@@ -145,15 +144,8 @@ class FireBotEnv(gym.Env):
             return self._get_mock_observation(), {}
 
         # Send reset command to ZMQ bridge
-        payload = {
-            "reset": True,
-            "command": "step"
-        }
-        
         try:
-            self.socket.send(msgpack.packb(payload))
-            message = self.socket.recv()
-            data = msgpack.unpackb(message)
+            data = self.client.step(cmd_vel=[0.0, 0.0], steps=100, reset=True)
             
             # Seed visited_rooms with wherever the agent actually spawned so
             # the first step never triggers a false new-room bonus.
@@ -164,8 +156,8 @@ class FireBotEnv(gym.Env):
             
             return self._process_observation(data), {"ground_contact": spawn_ground}
             
-        except zmq.ZMQError as e:
-            print(f"ZMQ Error during reset: {e}")
+        except Exception as e:
+            print(f"Error during reset: {e}")
             # Return empty/safe observation in case of failure? 
             # Or raise? Raising is probably better for debugging.
             raise e
@@ -187,16 +179,7 @@ class FireBotEnv(gym.Env):
             reward = 0.0
             info = {}
         else:
-            payload = {
-                "command": "step",
-                "step": 100, # 1 step = 0.001s
-                "cmd_vel": cmd_vel,
-                "reset": False
-            }
-
-            self.socket.send(msgpack.packb(payload))
-            message = self.socket.recv()
-            data = msgpack.unpackb(message)
+            data = self.client.step(cmd_vel=cmd_vel, steps=100, reset=False)
             
             observation = self._process_observation(data)
             
@@ -354,7 +337,7 @@ class FireBotEnv(gym.Env):
         exploration_reward = 0.0
         if cell not in self.visited_cells:
             self.visited_cells.add(cell)
-            exploration_reward = 0.5 # Reduced from 5.0
+            exploration_reward = 0.5
 
         new_room_bonus = 0.0
         ground = data.get("ground_contact", "")
@@ -383,5 +366,5 @@ class FireBotEnv(gym.Env):
             self.collector.save(self.output_file)
             
         if not self.mock:
-            self.socket.close()
-            self.context.term()
+            if self.client.socket:
+                self.client.socket.close()
