@@ -3,6 +3,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, PoseArray
 from std_msgs.msg import Int16MultiArray, Bool, String
 from rosgraph_msgs.msg import Clock
+from sensor_msgs.msg import Image
 
 import zmq
 import msgpack
@@ -30,6 +31,10 @@ class MinimalBridge(Node):
         self.latest_grid = None
         self.grid_lock = threading.Lock()
         
+        # Add a thread-safe way to store the latest image
+        self.latest_image = None
+        self.image_lock = threading.Lock()
+        
         # Simulation time tracking
         self.current_sim_time = 0.0
         self.sim_time_lock = threading.Lock()
@@ -54,6 +59,7 @@ class MinimalBridge(Node):
         # 1. ROS Setup
         self.cmd_vel_pub = self.create_publisher(Twist, '/marble_hd2/cmd_vel', 10)
         self.create_subscription(Int16MultiArray, '/local_grid', self.grid_callback, 10)
+        self.create_subscription(Image, 'marble_hd2/camera/front/image', self.image_callback, 10)
 
         self.create_subscription(Clock, '/clock', self.clock_callback, 10)
         self.create_subscription(Bool, '/marble_hd2/wall_contact', self.wall_contact_callback, 10)
@@ -93,6 +99,22 @@ class MinimalBridge(Node):
             
         except ValueError as e:
             self.get_logger().error(f"Grid reshape failed: {e}. Check height/width dimensions.")
+
+    def image_callback(self, msg):
+        try:
+            channels = msg.step // msg.width
+            if channels == 0:
+                channels = 1
+            
+            # Convert ROS Image to NumPy array
+            img_array = np.array(msg.data, dtype=np.uint8)
+            img_array = img_array.reshape((msg.height, msg.width, channels))
+            
+            with self.image_lock:
+                self.latest_image = img_array
+                
+        except Exception as e:
+            self.get_logger().error(f"Image conversion/reshape failed: {e}")
 
 
     def clock_callback(self, msg):
@@ -268,6 +290,8 @@ class MinimalBridge(Node):
                 with self.grid_lock:
                     obs = self.latest_grid if self.latest_grid is not None else []
                 
+                with self.image_lock:
+                    current_image = self.latest_image if self.latest_image is not None else []
 
                 with self.contact_lock:
                     current_wall_contact = self.wall_contact
@@ -283,6 +307,7 @@ class MinimalBridge(Node):
                 reply = {
                     "status": "ok", 
                     "observation": obs,
+                    "image": current_image,
                     "wall_contact": current_wall_contact,
                     "ground_contact": current_ground_contact,
                     "agent_x": current_agent_x,
