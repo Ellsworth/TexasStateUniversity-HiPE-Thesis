@@ -27,23 +27,19 @@ def create_cql(device=None):
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     hyperparams = {
-        "learning_rate": 3e-4,
+        "learning_rate": 1e-4,
         "batch_size": 256,
-        "target_update_interval": 500,
+        "target_update_interval": 500, # Keep this high for stability
         "gamma": 0.99,
-        "alpha_threshold": 0.1,
-        "initial_alpha": 0.1,
+        "alpha": 1.0, # Lower alpha = less pessimistic
     }
 
     cql = d3rlpy.algos.DiscreteCQLConfig(
         learning_rate=hyperparams["learning_rate"],
         batch_size=hyperparams["batch_size"],
-        target_update_interval=hyperparams["target_update_interval"], # Increased for stability
+        target_update_interval=hyperparams["target_update_interval"],
         gamma=hyperparams["gamma"],
-
-        # --- Loosening the Pessimism ---
-        alpha_threshold=hyperparams["alpha_threshold"],        # Much lower threshold to prevent paralysis
-        initial_alpha=hyperparams["initial_alpha"],          # Start with less penalty
+        alpha=hyperparams["alpha"],
         
         # Preprocessing
         observation_scaler=d3rlpy.preprocessing.PixelObservationScaler(),
@@ -55,7 +51,7 @@ def create_cql(device=None):
 
 def main():
     parser = argparse.ArgumentParser(description="DiscreteCQL Offline Pretraining")
-    parser.add_argument("--dataset", type=str, default="offline_dataset.npz", help="Path to the offline dataset (npz file or directory of npz files)")
+    parser.add_argument("--dataset", type=str, default="./recordings/", help="Path to the offline dataset (npz file or directory of npz files)")
     parser.add_argument("--pretrain-steps", type=int, default=1000000, help="Number of offline pretraining steps")
     parser.add_argument("--n-frames", type=int, default=4, help="Number of frames to stack")
 
