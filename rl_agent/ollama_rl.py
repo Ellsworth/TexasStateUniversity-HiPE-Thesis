@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 import numpy as np
 import os
 from PIL import Image
+from datetime import datetime
+import time
 
 # Import the environment
 from firebot_agent.gym_env import FireBotEnv
@@ -70,7 +72,7 @@ def decide_action(image_input, previous_action_id: int = None):
     
     try:
         response = ollama.chat(
-            model='ministral-3:14b',
+            model='ministral-3:8b',
             messages=[
                 {
                     'role': 'user',
@@ -103,13 +105,34 @@ def decide_action(image_input, previous_action_id: int = None):
         return None, None
 
 if __name__ == "__main__":
-    env = FireBotEnv(discrete_actions=True, agent_name="ollama", record_data=True)
+
+    # Prepare recording path
+    recording_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recordings")
+    os.makedirs(recording_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = os.path.join(recording_dir, f"ollama_{timestamp}.npz")
+    print(f"Recording will be saved to: {output_file}")
+
+    env = FireBotEnv(discrete_actions=True, agent_name="ollama", record_data=True, output_file=output_file)
     print("Resetting environment...")
     obs, info = env.reset()
     
     previous_action_id = 0 # initially stopped
     
-    for step_num in range(100):
+    # Run Parameters
+    MAX_STEPS = 100_000
+    MAX_DURATION_SECONDS = 3600  # 1 hour
+    
+    start_time = time.time()
+    
+    for step_num in range(MAX_STEPS):
+        # Check if we've exceeded the maximum allowed wall time
+        if time.time() - start_time > MAX_DURATION_SECONDS:
+            print(f"\nReached maximum duration of {MAX_DURATION_SECONDS} seconds. Stopping.")
+            env.close()
+            break
+            
+        step_start_time = time.time()
         print(f"\n--- Step {step_num} ---")
         image = info.get("image")
         
@@ -117,6 +140,8 @@ if __name__ == "__main__":
             print("No image received yet. Stepping with Stop action.")
             action_id = 0
             obs, reward, terminated, truncated, info = env.step(action_id)
+            step_duration = time.time() - step_start_time
+            print(f"Step {step_num} took {step_duration:.2f} seconds")
             continue
             
         decision, cmd_vel = decide_action(image, previous_action_id)
@@ -134,3 +159,6 @@ if __name__ == "__main__":
         if terminated or truncated:
             print("Episode ended.")
             obs, info = env.reset()
+            
+        step_duration = time.time() - step_start_time
+        print(f"Step {step_num} took {step_duration:.2f} seconds")
