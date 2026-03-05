@@ -364,8 +364,11 @@ class FireBotEnv(gym.Env):
                 self.claimed_breadcrumbs.add(idx)
                 breadcrumb_reward += 2.0 # Reduced from 50.0
 
+        # Small incentive to move forwards to offset the time penalty and prefer forward exploration
+        forward_bonus = 0.02 * max(0.0, float(action[0]))
+
         return (time_penalty + exploration_reward + stuck_penalty + 
-                collision_penalty + new_room_bonus + breadcrumb_reward)
+                collision_penalty + new_room_bonus + breadcrumb_reward + forward_bonus)
     
     def close(self):
         if self.record_data:
