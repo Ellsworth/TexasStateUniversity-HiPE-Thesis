@@ -69,6 +69,6 @@ if __name__ == "__main__":
     print("Sending step command...")
     response = client.step(cmd_vel=cmd, steps=10, reset=False)
 
-    print("Response: ", response["image"].shape)
+    print("Response: ", response["observation"])
     
     print("Test complete.")

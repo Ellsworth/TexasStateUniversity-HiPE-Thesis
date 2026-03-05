@@ -14,6 +14,7 @@ import time
 import subprocess
 import os
 import signal
+import math
 
 from ros_gz_interfaces.srv import ControlWorld
 from ros_gz_interfaces.msg import WorldControl
@@ -54,6 +55,7 @@ class MinimalBridge(Node):
         self.agent_x = 0.0
         self.agent_y = 0.0
         self.agent_z = 0.0
+        self.agent_yaw = 0.0  # radians, derived from quaternion
         self.pose_lock = threading.Lock()
 
         # 1. ROS Setup
@@ -135,6 +137,12 @@ class MinimalBridge(Node):
                 self.agent_x = msg.poses[0].position.x
                 self.agent_y = msg.poses[0].position.y
                 self.agent_z = msg.poses[0].position.z
+                # Yaw from quaternion: atan2(2*(qw*qz + qx*qy), 1 - 2*(qy^2 + qz^2))
+                q = msg.poses[0].orientation
+                self.agent_yaw = math.atan2(
+                    2.0 * (q.w * q.z + q.x * q.y),
+                    1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+                )
 
     def step_simulation(self, steps=1):
         """Step the simulation by N steps"""
@@ -301,6 +309,7 @@ class MinimalBridge(Node):
                     current_agent_x = self.agent_x
                     current_agent_y = self.agent_y
                     current_agent_z = self.agent_z
+                    current_agent_yaw = self.agent_yaw
 
                 # Send back the actual observation
                 # msgpack_numpy handles the conversion of the NumPy array automatically
@@ -312,7 +321,8 @@ class MinimalBridge(Node):
                     "ground_contact": current_ground_contact,
                     "agent_x": current_agent_x,
                     "agent_y": current_agent_y,
-                    "agent_z": current_agent_z
+                    "agent_z": current_agent_z,
+                    "agent_yaw": current_agent_yaw
                 }
                 self.zmq_socket.send(msgpack.packb(reply))
 

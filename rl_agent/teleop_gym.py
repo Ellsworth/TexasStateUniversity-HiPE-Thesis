@@ -132,6 +132,37 @@ class FireBotTeleop:
         p4 = (center_x + arrow_size // 2, center_y + arrow_size // 2) # Bottom Right
         
         pygame.draw.polygon(self.screen, (0, 100, 255), [p1, p2, p3, p4])
+
+    def render_visited_overlay(self, visited_map: np.ndarray):
+        """Blit the pre-rotated visited_map observation as a translucent
+        light-green tint over the occupancy grid.
+        visited_map: (1, 65, 65) uint8 — 255 = visited, 0 = unvisited.
+        """
+        grid = np.squeeze(visited_map)  # (65, 65)
+
+        # Build an RGBA surface: visited pixels get green fill, rest is clear
+        grid_w = GRID_SIZE * SCALE_FACTOR
+        grid_h = GRID_SIZE * SCALE_FACTOR
+
+        # Scale the 65x65 mask up to display resolution first
+        mask_surf = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA)
+        # Build pixel array: visited=255 -> semi-transparent green, else clear
+        rgba = np.zeros((GRID_SIZE, GRID_SIZE, 4), dtype=np.uint8)
+        visited_mask = (grid == 255)
+        rgba[visited_mask] = [100, 255, 120, 60]  # light green, ~24% opacity
+
+        # Transpose for pygame (x, y) vs numpy (row=y, col=x)
+        rgba_t = np.transpose(rgba, (1, 0, 2))
+        pygame.surfarray.blit_array(mask_surf,
+            rgba_t[:, :, :3].copy(order='C'))
+        # Manually set per-pixel alpha
+        alpha_arr = pygame.surfarray.pixels_alpha(mask_surf)
+        alpha_arr[:] = rgba_t[:, :, 3]
+        del alpha_arr  # release lock
+
+        scaled = pygame.transform.scale(mask_surf, (grid_w, grid_h))
+        self.screen.blit(scaled, (OFFSET_X, OFFSET_Y))
+
     def draw_text(self, text, x, y, color=COLOR_TEXT):
         text_surface = self.font.render(text, True, color)
         self.screen.blit(text_surface, (x, y))
@@ -172,6 +203,10 @@ class FireBotTeleop:
             # Render Grid
             if "local_grid" in obs:
                 self.render_grid(obs["local_grid"])
+
+            # Render visited-cells overlay (pre-rotated, same frame as local_grid)
+            if "visited_map" in obs:
+                self.render_visited_overlay(obs["visited_map"])
             
             # Render Info Text
             text_x = 50

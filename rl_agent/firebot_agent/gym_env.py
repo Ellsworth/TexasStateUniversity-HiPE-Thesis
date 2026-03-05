@@ -6,6 +6,8 @@ import msgpack
 import msgpack_numpy as m
 import csv
 import os
+import math
+from scipy.ndimage import rotate as ndimage_rotate
 from .offline_dataset_recorder import OfflineDataCollector
 from .rl_zmq_client import RLZmqClient
 
@@ -22,6 +24,10 @@ DISCRETE_ACTION_MAP = {
     5: [0.5, 0.5],   # Curve Left
     6: [0.5, -0.5]   # Curve Right
 }
+
+# Visited-map constants — must match local occupancy grid pixel scale
+VISITED_MAP_RESOLUTION = 0.25  # metres per pixel
+VISITED_MAP_SIZE       = 65    # pixels (width = height)
 
 class FireBotEnv(gym.Env):
     """
@@ -106,7 +112,11 @@ class FireBotEnv(gym.Env):
                 low=np.array([0.0], dtype=np.float32),
                 high=np.array([1.0], dtype=np.float32),
                 dtype=np.float32
-            )
+            ),
+            "visited_map": spaces.Box(
+                low=0, high=255,
+                shape=(1, VISITED_MAP_SIZE, VISITED_MAP_SIZE), dtype=np.uint8
+            ),
         })
 
     def reset(self, seed=None, options=None):
@@ -230,6 +240,7 @@ class FireBotEnv(gym.Env):
                 "agent_x": float(data.get("agent_x", 0.0)),
                 "agent_y": float(data.get("agent_y", 0.0)),
                 "agent_z": float(data.get("agent_z", 0.0)),
+                "agent_yaw": float(data.get("agent_yaw", 0.0)),
                 "image": data.get("image", [])
             }
 
@@ -243,7 +254,8 @@ class FireBotEnv(gym.Env):
         """Generate random observation for testing."""
         return {
             "local_grid": np.random.randint(0, 255, (1, 65, 65), dtype=np.uint8),
-            "wall_contact": np.array([0.0], dtype=np.float32)
+            "wall_contact": np.array([0.0], dtype=np.float32),
+            "visited_map": np.zeros((1, VISITED_MAP_SIZE, VISITED_MAP_SIZE), dtype=np.uint8),
         }
 
     def _process_observation(self, data):
@@ -277,15 +289,67 @@ class FireBotEnv(gym.Env):
         # Simple linear scaling: val * 2.55
         processed_grid[mask_occupied] = np.clip(local_grid[mask_occupied] * 2.55, 0, 255).astype(np.uint8)
 
+        wall_contact = np.array([1.0 if data.get("wall_contact", False) else 0.0], dtype=np.float32)
+
+        agent_x = float(data.get("agent_x", 0.0))
+        agent_y = float(data.get("agent_y", 0.0))
+        agent_yaw = float(data.get("agent_yaw", 0.0))  # radians
+
+        # NOTE: local_grid_window.py already rotates the grid by (-yaw - π/2)
+        # so forward is up in the published grid. No further rotation needed here.
+
         # Add channel dimension: (65, 65) -> (1, 65, 65)
         local_grid = np.expand_dims(processed_grid, axis=0)
 
-        wall_contact = np.array([1.0 if data.get("wall_contact", False) else 0.0], dtype=np.float32)
+        visited_map = self._build_visited_map(agent_x, agent_y, agent_yaw)
 
         return {
             "local_grid": local_grid,
-            "wall_contact": wall_contact
+            "wall_contact": wall_contact,
+            "visited_map": visited_map,
         }
+
+    def _build_visited_map(self, agent_x: float, agent_y: float, agent_yaw: float = 0.0) -> np.ndarray:
+        """Return a (1, 65, 65) uint8 array at 0.25 m/px centred on the agent.
+        Each 2 m visited cell is rendered as an 8x8 pixel filled block.
+        The map is rotated so the agent's heading points up (same frame as
+        the rotated occupancy grid).
+        Visited = 255, unvisited = 0.
+        """
+        px_per_m    = 1.0 / VISITED_MAP_RESOLUTION          # 4 px / m
+        px_per_cell = int(self.cell_size * px_per_m)        # 8 px / cell
+        half_px     = VISITED_MAP_SIZE // 2                 # 32
+
+        # Rotation matrix to match local_grid_window.py frame: rotate by (-yaw - π/2)
+        angle = agent_yaw - (math.pi / 2)
+        cos_h = math.cos(angle)
+        sin_h = math.sin(angle)
+
+        canvas = np.zeros((VISITED_MAP_SIZE, VISITED_MAP_SIZE), dtype=np.uint8)
+
+        for (cx, cy) in self.visited_cells:
+            # World-space offset of cell centre from agent
+            wx0 = cx * self.cell_size
+            wy0 = cy * self.cell_size
+            dx = (wx0 - agent_x) * px_per_m  # pixels, world frame
+            dy = (wy0 - agent_y) * px_per_m
+
+            # Rotate into agent-heading frame (yaw = 0 → forward = +col)
+            rdx = cos_h * dx - sin_h * dy
+            rdy = sin_h * dx + cos_h * dy
+
+            col0 = int(rdx) + half_px
+            row0 = int(rdy) + half_px
+            col1 = col0 + px_per_cell
+            row1 = row0 + px_per_cell
+
+            # Clamp to canvas bounds
+            col0c = max(col0, 0);  col1c = min(col1, VISITED_MAP_SIZE)
+            row0c = max(row0, 0);  row1c = min(row1, VISITED_MAP_SIZE)
+            if col0c < col1c and row0c < row1c:
+                canvas[row0c:row1c, col0c:col1c] = 255
+
+        return np.expand_dims(canvas, axis=0)  # (1, 65, 65)
 
     def _load_breadcrumbs(self):
         """Load breadcrumb waypoints from breadcrumbs.csv in the rl_agent directory."""
